@@ -1,0 +1,83 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'isoku'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=isoku"
+                ],
+                "filter": {
+                    "name": "isoku",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'isoku'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=isoku",
+                    "--package=isoku"
+                ],
+                "filter": {
+                    "name": "isoku",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'isoku'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=isoku",
+                    "--package=isoku"
+                ],
+                "filter": {
+                    "name": "isoku",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'osu_data'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=osu_data",
+                    "--package=isoku"
+                ],
+                "filter": {
+                    "name": "osu_data",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ],
+}
