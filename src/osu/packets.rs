@@ -170,10 +170,13 @@ pub mod server {
     /* CHAT */
     pub fn send_message(from: &Token, to: String, message: String) -> Vec<u8> {
         let data = {
-            let mut buf = BytesMut::new();
-            buf.put(from.username().encode());
-            buf.put(message.encode());
-            buf.put(to.encode());
+            let data = [
+                from.username().encode(),
+                message.encode(),
+                to.encode(),
+            ].concat();
+            let mut buf = BytesMut::with_capacity(data.len() + 4);
+            buf.put(data);
             buf.put_u32_le(from.id());
             buf
         };
@@ -269,8 +272,13 @@ pub mod client {
     }
 
     pub fn parse_packet<'b>(buf: &'b [u8]) -> (ID, u32, &'b [u8]) {
-        let id = ID::n(u16::decode(buf)).unwrap_or(ID::UNKNOWN);
-        let len = u32::decode(&buf[3..]);
+        let (_, id_raw) = u16::decode(buf);
+        let id = ID::n(id_raw).unwrap_or_else(|| {eprintln!("Unknown id: {}",id_raw); ID::UNKNOWN});
+        let (_, len) = u32::decode(&buf[3..]);
+        if len as usize >= buf.len() {
+            eprintln!("Packet {} had length of {}, which is greater than the length of the buffer", id_raw, len);
+            return (ID::UNKNOWN, len, &[]);
+        }
         let data = if len > 0 {
             match id {
                 ID::UNKNOWN => buf,

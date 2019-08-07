@@ -4,12 +4,11 @@ use osu::OsuData;
 use osu::token::Token;
 
 pub fn send_public_message(data: &[u8], token: &Token, glob: &Glob) {
-    let (_, message, to) = {
-        let u = String::decode(data);
-        let len = u.as_bytes().len();
-        let message = String::decode(&data[len..]);
-        let len = len + message.as_bytes().len();
-        let to = String::decode(&data[len..]);
+    let (u, message, to) = {
+        let (len, u) = String::decode(data);
+        let (l, message) = String::decode(&data[len..]);
+        let len = len + l;
+        let (_, to) = String::decode(&data[len..]);
         (u, message, to)
     };
 
@@ -18,18 +17,21 @@ pub fn send_public_message(data: &[u8], token: &Token, glob: &Glob) {
         return
     }
 
+    println!("SEND PUBLIC MESSAGE {},{},{}", u,message,to);
+
     let channel =
         if let Some(channel) = glob.channel_list.get(&to) { channel }
         else {
             return;
         };
+    println!("{:?}", channel);
     let channel_users = channel.users();
 
     let packet = osu::packets::server::send_message(token, to, message);
 
     channel_users.iter()
         .filter(|t| t.id() != token.id())
-        .for_each(|t| t.enqueue(&packet));
+        .for_each(|t| { println!("enquing for {:?}", t); t.enqueue(&packet) });
 }
 
 pub fn logout(token: &str, glob: &Glob) {
@@ -47,7 +49,7 @@ pub fn logout(token: &str, glob: &Glob) {
 }
 
 pub fn channel_join(data: &[u8], token: Arc<Token>, glob: &Glob) {
-    let channel_name = String::decode(data);
+    let (_, channel_name) = String::decode(data);
 
     if let Some(channel) = glob.channel_list.get(&channel_name) {
         token.join_channel(Arc::downgrade(&channel));
@@ -55,10 +57,10 @@ pub fn channel_join(data: &[u8], token: Arc<Token>, glob: &Glob) {
     };
 }
 
-pub fn user_stats_request(data: &[u8], token: &Token, glob: &Glob) {
+pub fn user_stats_request<'a>(data: &'a[u8], token: &Token, glob: &Glob) {
     use osu::packets::server::user_stats;
 
-    let users: Vec<i32> = Vec::decode(data);
+    let (_, users): (_, &'a[i32]) = OsuData::decode(data);
     println!("user_stats_request\n{:?}\n", users);
 
     glob.token_list.entries().into_iter()
@@ -66,10 +68,10 @@ pub fn user_stats_request(data: &[u8], token: &Token, glob: &Glob) {
         .for_each(|t| token.enqueue(&user_stats(&t)));
 }
 
-pub fn user_panel_request(data: &[u8], token: &Token, glob: &Glob) {
+pub fn user_panel_request<'a>(data: &'a[u8], token: &Token, glob: &Glob) {
     use osu::packets::server::user_panel;
 
-    let users: Vec<i32> = Vec::decode(data);
+    let (_, users): (_, &'a[i32]) = OsuData::decode(data);
     println!("user_panel_request\n{:?}\n", users);
 
     glob.token_list.entries().into_iter()

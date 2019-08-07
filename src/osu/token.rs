@@ -74,6 +74,12 @@ impl std::cmp::PartialEq<i32> for Token {
     }
 }
 
+impl std::cmp::PartialEq<Arc<Token>> for Token {
+    fn eq(&self, other: &Arc<Token>) -> bool {
+        (*other).id() == self.id
+    }
+}
+
 // pub struct TokenList {
 //     list: HashMap<String, Arc<Token>>
 // }

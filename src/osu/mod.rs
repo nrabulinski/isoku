@@ -41,7 +41,8 @@ impl<T> List<T> {
 
 pub trait OsuData {
     fn encode(self) -> BytesMut;
-    fn decode(buf: &[u8]) -> Self;
+    //TODO: Make the return type Self again
+    fn decode(buf: &[u8]) -> (usize, Self);
 }
 
 impl OsuData for u16 {
@@ -51,9 +52,9 @@ impl OsuData for u16 {
         buf
     }
 
-    fn decode(buf: &[u8]) -> Self {
+    fn decode(buf: &[u8]) -> (usize, Self) {
         unsafe {
-            *(buf.as_ptr() as *mut u16)
+            (2, *(buf.as_ptr() as *mut u16))
         }
     }
 }
@@ -65,9 +66,9 @@ impl OsuData for i16 {
         buf
     }
 
-    fn decode(buf: &[u8]) -> Self {
+    fn decode(buf: &[u8]) -> (usize, Self) {
         unsafe {
-            *(buf.as_ptr() as *mut i16)
+            (2, *(buf.as_ptr() as *mut i16))
         }
     }
 }
@@ -79,9 +80,9 @@ impl OsuData for u32 {
         buf
     }
 
-    fn decode(buf: &[u8]) -> Self {
+    fn decode(buf: &[u8]) -> (usize, Self) {
         unsafe {
-            *(buf.as_ptr() as *mut u32)
+            (4, *(buf.as_ptr() as *mut u32))
         }
     }
 }
@@ -93,9 +94,9 @@ impl OsuData for i32 {
         buf
     }
 
-    fn decode(buf: &[u8]) -> Self {
+    fn decode(buf: &[u8]) -> (usize, Self) {
         unsafe {
-            *(buf.as_ptr() as *mut i32)
+            (4, *(buf.as_ptr() as *mut i32))
         }
     }
 }
@@ -105,8 +106,8 @@ impl OsuData for BytesMut {
         self
     }
 
-    fn decode(buf: &[u8]) -> Self {
-        BytesMut::from(buf)
+    fn decode(buf: &[u8]) -> (usize, Self) {
+        (buf.len(), BytesMut::from(buf))
     }
 }
 
@@ -126,7 +127,7 @@ impl OsuData for Vec<i32> {
         buf
     }
 
-    fn decode(buf: &[u8]) -> Self {
+    fn decode(buf: &[u8]) -> (usize, Self) {
         use bytes::Buf;
         use std::io::Cursor;
         let mut buf = Cursor::new(buf);
@@ -143,9 +144,31 @@ impl OsuData for Vec<i32> {
             for _ in 0..len {
                 data.push(buf.get_i32_le());
             }
-            data
+            (2 + data.len() * 4, data)
         } else {
-            Vec::with_capacity(0)
+            (2, Vec::with_capacity(0))
+        }
+    }
+}
+
+impl OsuData for &[i32] {
+    fn encode(self) -> BytesMut {
+        let mut buf = BytesMut::with_capacity(self.len() * 4 + 2);
+        buf.put_u16_le(self.len() as u16);
+        unsafe {
+            buf.set_len(self.len() * 4 + 2);
+            let dst = buf.as_mut_ptr().offset(2) as *mut i32;
+            std::ptr::copy_nonoverlapping(self.as_ptr(), dst, self.len());
+        }
+        buf
+    }
+
+    fn decode(buf: &[u8]) -> (usize, Self) {
+        let (_, len) = i16::decode(buf);
+        unsafe {
+            let ptr = buf.as_ptr().offset(2) as *const i32;
+            let slice = std::slice::from_raw_parts(ptr, len as usize);
+            (2 + slice.len() * 4, slice)
         }
     }
 }
@@ -155,8 +178,8 @@ impl OsuData for Vec<u8> {
         BytesMut::from(self)
     }
 
-    fn decode(buf: &[u8]) -> Self {
-        Vec::from(buf)
+    fn decode(buf: &[u8]) -> (usize, Self) {
+        (buf.len(), Vec::from(buf))
     }
 }
 
@@ -205,10 +228,17 @@ impl OsuData for String {
         encode_str(&self)
     }
 
-    fn decode(buf: &[u8]) -> String {
-        let buf = &buf[1..];
-        let (len, start) = leb_decode(buf);
-        String::from_utf8_lossy(&buf[start..start + len as usize]).to_string()
+    fn decode(buf: &[u8]) -> (usize, Self) {
+        if buf[0] == 0 {
+            (1, "".to_string())
+        } else if buf[0] == 0xb {
+            let buf = &buf[1..];
+            let (len, start) = leb_decode(buf);
+            (1 + start + len as usize, String::from_utf8_lossy(&buf[start..start + len as usize]).to_string())
+        } else {
+            eprint!("Unknown string prefix!\n{:x?}", buf);
+            (1, "".to_string())
+        }
     }
 }
 

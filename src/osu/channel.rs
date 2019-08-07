@@ -1,4 +1,4 @@
-use std::sync::{RwLock, Arc};
+use std::sync::{RwLock, Weak, Arc};
 use super::token::Token;
 use super::List;
 use super::packets::server as packets;
@@ -31,12 +31,12 @@ impl Channel {
     }
 
     pub fn add_client(&self, token: Arc<Token>) {
-        if self.users.read().unwrap().contains(&token) {
-            return
-        };
-
+        // if self.users.read().unwrap().contains(&token) {
+        //     return
+        // };
         token.enqueue(&packets::channel_join_success(self.name()));
         self.users.write().unwrap().push(token);
+        println!("Added a user to {:?}", self);
     }
     
     pub fn remove_client(&self, token: &Arc<Token>) {

@@ -1,5 +1,8 @@
 #![feature(vec_remove_item)]
 
+//TODO: Remove all useless comments
+//TODO: Proper logging system
+
 extern crate r2d2;
 
 pub mod http;
@@ -95,6 +98,8 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
     ].concat();
     println!("{:x?}", data);
 
+    glob.token_list.enqueue_all(&p::user_panel(&token));
+
     (token.token(), data)
 }
 
@@ -108,6 +113,7 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
     //println!("Handling request from user {}", user.username());
     
     use packets::client::ID;
+    //TODO: Have this as a cursor
     let request_data = req.body();
     let mut pos = 0;
     println!("Request data: {}\n{:x?}", request_data.len(), request_data);

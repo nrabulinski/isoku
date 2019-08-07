@@ -14,7 +14,7 @@ pub fn handle(server: Arc<TcpListener>, glob: Arc<Glob>) {
     for stream in server.incoming() {
         let mut stream = stream.unwrap();
         
-        let mut buf = [0_u8; 4096];
+        let mut buf = [0_u8; 8192];
         
         let raw = {
             let len = stream.read(&mut buf).unwrap();
