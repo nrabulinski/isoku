@@ -1,4 +1,5 @@
 use super::OsuData;
+use super::super::cursor::Cursor;
 
 pub mod server {
     use super::OsuData;
@@ -149,7 +150,7 @@ pub mod server {
         build_packet(ID::USER_STATS, data)
     }
 
-    pub fn friend_list(users: Vec<i32>) -> Vec<u8> {
+    pub fn friend_list(users: &[i32]) -> Vec<u8> {
         build_packet(ID::FRIENDS_LIST, users)
     }
 
@@ -161,7 +162,7 @@ pub mod server {
         build_packet(ID::PROTOCOL_VERSION, 19_u32)
     }
 
-    pub fn online_users(user_list: Vec<i32>) -> Vec<u8> {
+    pub fn online_users(user_list: &[i32]) -> Vec<u8> {
         let data = build_packet(ID::USER_PRESENCE_BUNDLE, user_list);
         println!("online users:\n{:x?}\n", data);
         data
@@ -214,6 +215,7 @@ pub mod server {
 
 pub mod client {
     use super::OsuData;
+    use super::Cursor;
 
     #[allow(non_camel_case_types)]
     #[derive(Debug, enumn::N)]
@@ -271,21 +273,19 @@ pub mod client {
         UNKNOWN = -1
     }
 
-    pub fn parse_packet<'b>(buf: &'b [u8]) -> (ID, u32, &'b [u8]) {
-        let (_, id_raw) = u16::decode(buf);
+    pub fn parse_packet<'b>(buf: &mut Cursor<'b>) -> (ID, Cursor<'b>) {
+        let id_raw = u16::decode(buf);
         let id = ID::n(id_raw).unwrap_or_else(|| {eprintln!("Unknown id: {}",id_raw); ID::UNKNOWN});
-        let (_, len) = u32::decode(&buf[3..]);
-        if len as usize >= buf.len() {
+        buf.advance(1);
+        let len = u32::decode(buf);
+        if buf.remaining() < len as usize {
             eprintln!("Packet {} had length of {}, which is greater than the length of the buffer", id_raw, len);
-            return (ID::UNKNOWN, len, &[]);
+            return (ID::UNKNOWN, Cursor::new(&[]));
         }
         let data = if len > 0 {
-            match id {
-                ID::UNKNOWN => buf,
-                _ => &buf[7..7 + len as usize]
-            }
-        } else { &[] };
-        (id, len, data)
+            Cursor::new(buf.read(len as usize))
+        } else { Cursor::new(&[]) };
+        (id, data)
     }
 
     // pub fn channel_join(buf: &[u8]) -> String {

@@ -2,14 +2,14 @@ use std::sync::Arc;
 use super::{Glob, osu};
 use osu::OsuData;
 use osu::token::Token;
+use super::Cursor;
 
-pub fn send_public_message(data: &[u8], token: &Token, glob: &Glob) {
-    let (u, message, to) = {
-        let (len, u) = String::decode(data);
-        let (l, message) = String::decode(&data[len..]);
-        let len = len + l;
-        let (_, to) = String::decode(&data[len..]);
-        (u, message, to)
+pub fn send_public_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
+    let (message, to) = {
+        let _ = String::decode(data);
+        let message = String::decode(data);
+        let to = String::decode(data);
+        (message, to)
     };
 
     if to == "#multiplayer" || to == "#spectator" {
@@ -17,7 +17,7 @@ pub fn send_public_message(data: &[u8], token: &Token, glob: &Glob) {
         return
     }
 
-    println!("SEND PUBLIC MESSAGE {},{},{}", u,message,to);
+    println!("SEND PUBLIC MESSAGE {},{}", message,to);
 
     let channel =
         if let Some(channel) = glob.channel_list.get(&to) { channel }
@@ -48,8 +48,8 @@ pub fn logout(token: &str, glob: &Glob) {
     println!("AFTER LOGOUT:\n{:?}\n{:?}", glob.token_list.entries(), glob.channel_list.entries());
 }
 
-pub fn channel_join(data: &[u8], token: Arc<Token>, glob: &Glob) {
-    let (_, channel_name) = String::decode(data);
+pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
+    let channel_name = String::decode(data);
 
     if let Some(channel) = glob.channel_list.get(&channel_name) {
         token.join_channel(Arc::downgrade(&channel));
@@ -57,10 +57,10 @@ pub fn channel_join(data: &[u8], token: Arc<Token>, glob: &Glob) {
     };
 }
 
-pub fn user_stats_request<'a>(data: &'a[u8], token: &Token, glob: &Glob) {
+pub fn user_stats_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob) {
     use osu::packets::server::user_stats;
 
-    let (_, users): (_, &'a[i32]) = OsuData::decode(data);
+    let users: &'a[i32] = OsuData::decode(data);
     println!("user_stats_request\n{:?}\n", users);
 
     glob.token_list.entries().into_iter()
@@ -68,10 +68,10 @@ pub fn user_stats_request<'a>(data: &'a[u8], token: &Token, glob: &Glob) {
         .for_each(|t| token.enqueue(&user_stats(&t)));
 }
 
-pub fn user_panel_request<'a>(data: &'a[u8], token: &Token, glob: &Glob) {
+pub fn user_panel_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob) {
     use osu::packets::server::user_panel;
 
-    let (_, users): (_, &'a[i32]) = OsuData::decode(data);
+    let users: &'a[i32] = OsuData::decode(data);
     println!("user_panel_request\n{:?}\n", users);
 
     glob.token_list.entries().into_iter()

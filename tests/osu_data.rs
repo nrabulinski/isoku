@@ -2,56 +2,80 @@ use isoku::osu::OsuData;
 use rand::Rng;
 use rand::distributions::{Distribution, Standard};
 use std::mem::size_of;
+use isoku::cursor::Cursor;
+use std::cmp::PartialEq;
+use std::fmt::Debug;
+use std::clone::Clone;
+
+fn basic_test<T: OsuData + PartialEq + Debug + Clone>(value: T) {
+    let encoded = value.clone().encode();
+    let mut cursor = Cursor::new(&encoded);
+    let decoded = <T as OsuData>::decode(&mut cursor);
+    assert_eq!(decoded, value);
+}
 
 #[test]
 fn string() {
-    let value = "#osu";
-    let encoded = value.to_string().encode();
-    let (_, decoded) = String::decode(&encoded);
-    println!("{:x?}", encoded.as_ref());
-    assert_eq!(&decoded, value);
+    basic_test("#osu".to_string());
 }
 
 #[test]
 fn u16() {
-    let value: u16 = rand();
-    let encoded = value.encode();
-    let (_, decoded) = u16::decode(&encoded);
-    assert_eq!(decoded, value);
+    basic_test(rand::<u16>());
 }
 
 #[test]
 fn i16() {
-    let value: i16 = rand();
-    let encoded = value.encode();
-    let (_, decoded) = i16::decode(&encoded);
-    assert_eq!(decoded, value);
+    basic_test(rand::<i16>());
 }
 
 #[test]
 fn u32() {
-    let value: u32 = rand();
-    let encoded = value.encode();
-    let (_, decoded) = u32::decode(&encoded);
-    assert_eq!(decoded, value);
+    basic_test(rand::<u32>());
 }
 
 #[test]
 fn i32() {
-    let value: i32 = rand();
-    let encoded = value.encode();
-    let (_, decoded) = i32::decode(&encoded);
-    assert_eq!(decoded, value);
+    basic_test(rand::<i32>());
 }
 
 #[test]
 fn i32_slice() {
-    let value = [1_i32, 1, 1, 1, 1, 1];
+    let value = [1_i32];
     let encoded = value.encode();
-    let (_, decoded): (_, &[i32]) = OsuData::decode(&encoded);
-    println!("{:?}\n{:?}\n{:?}\n", value, encoded.as_ref(), decoded);
+    let mut cursor = Cursor::new(&encoded);
+    let decoded: &[i32] = OsuData::decode(&mut cursor);
     assert_eq!(encoded.len(), value.len() * size_of::<i32>() + size_of::<u16>());
     assert_eq!(decoded, &value);
+}
+
+#[test]
+fn multiple_values() {
+    type Test = (i32, u32, i16, u16, String);
+    let (a,b,c,d,e): Test = {
+        let mut rng = rand::thread_rng();
+        (rng.gen(),rng.gen(),rng.gen(),rng.gen(),"osu test".to_string())
+    };
+        let encoded = [
+        a.encode(),
+        b.encode(),
+        c.encode(),
+        d.encode(),
+        e.clone().encode()
+    ].concat();
+    let mut cursor = Cursor::new(&encoded);
+    let (x,y,z,i,j): Test = (
+        OsuData::decode(&mut cursor),
+        OsuData::decode(&mut cursor),
+        OsuData::decode(&mut cursor),
+        OsuData::decode(&mut cursor),
+        OsuData::decode(&mut cursor),
+    );
+    assert_eq!(x, a);
+    assert_eq!(y, b);
+    assert_eq!(z, c);
+    assert_eq!(i, d);
+    assert_eq!(j, e);
 }
 
 

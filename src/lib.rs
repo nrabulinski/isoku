@@ -7,6 +7,7 @@ extern crate r2d2;
 
 pub mod http;
 pub mod osu;
+pub mod cursor;
 mod events;
 use osu::{List, packets};
 use osu::token::Token;
@@ -14,6 +15,7 @@ use osu::channel::Channel;
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
 use std::sync::Arc;
+use cursor::Cursor;
 
 const EASTEREGG: &'static [u8] = b"
 <html>
@@ -76,6 +78,8 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
     let token = glob.token_list.add_token(id as u32, username.to_string());
     println!("{:?}", token);
 
+    let online: Vec<i32> = glob.token_list.entries().into_iter().map(|token| token.id() as i32).collect();
+
     use packets::server as p;
     let data = [
         p::silence_end(0),
@@ -83,14 +87,14 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
         p::user_id(token.id()),
         p::user_rank(0),
 
-        p::friend_list(vec![]),
+        p::friend_list(&[]),
 
         p::user_panel(&token),
         p::user_stats(&token),
         
         //p::menu_icon("https://i.imgur.com/DmwAGYO.png"),
 
-        p::online_users(glob.token_list.entries().into_iter().map(|token| token.id() as i32).collect()),
+        p::online_users(&online),
         //glob.token_list.entries().into_iter().flat_map(|token| p::user_panel(&token)).collect(),
 
         p::channel_info_end(),
@@ -113,23 +117,21 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
     //println!("Handling request from user {}", user.username());
     
     use packets::client::ID;
-    //TODO: Have this as a cursor
     let request_data = req.body();
-    let mut pos = 0;
+    let mut c = Cursor::new(request_data);
     println!("Request data: {}\n{:x?}", request_data.len(), request_data);
-    while pos < request_data.len() {
-        let (id, len, data) = packets::client::parse_packet(&request_data[pos..]);
+    while c.remaining() > 0 {
+        let (id, mut data) = packets::client::parse_packet(&mut c);
         match id {
-            ID::UNKNOWN => eprintln!("Found an unknown packet!\n{:x?}\n", data),
-            ID::SEND_PUBLIC_MESSAGE => events::send_public_message(data, &user, glob),
+            ID::UNKNOWN => eprintln!("Found an unknown packet!\n{:x?}\n", data.data()),
+            ID::SEND_PUBLIC_MESSAGE => events::send_public_message(&mut data, &user, glob),
             ID::LOGOUT => events::logout(token, glob),
             ID::PONG => (),
-            ID::CHANNEL_JOIN => events::channel_join(data, user.clone(), glob),
-            ID::USER_STATS_REQUEST => events::user_stats_request(data, &user, glob),
-            ID::USER_PRESENCE_REQUEST => events::user_panel_request(data, &user, glob),
-            _ => eprintln!("Unhandled packet! {:?}\n{:x?\n}", id, data)
+            ID::CHANNEL_JOIN => events::channel_join(&mut data, user.clone(), glob),
+            ID::USER_STATS_REQUEST => events::user_stats_request(&mut data, &user, glob),
+            ID::USER_PRESENCE_REQUEST => events::user_panel_request(&mut data, &user, glob),
+            _ => eprintln!("Unhandled packet! {:?}\n{:x?\n}", id, data.data())
         }
-        pos += 7 + len as usize;
     }
 
     let data = user.clear_queue();
