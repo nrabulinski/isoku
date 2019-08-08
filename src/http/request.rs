@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::SocketAddr;
 
 pub enum Method<'a> {
     GET,
@@ -10,18 +11,19 @@ pub struct Request<'a> {
     method: Method<'a>,
     body: &'a [u8],
     headers: HashMap<String, &'a str>,
-    path: &'a str
+    path: &'a str,
+    addr: SocketAddr
 }
 
 impl<'a> Request<'a> {
-    pub fn new(method: &'a str, body: &'a [u8], headers: HashMap<String, &'a str>, path: &'a str) -> Self {
+    pub fn new(method: &'a str, body: &'a [u8], headers: HashMap<String, &'a str>, path: &'a str, addr: SocketAddr) -> Self {
         Request {
             method: match method {
                 "GET" => Method::GET,
                 "POST" => Method::POST,
                 _ => Method::OTHER(method)
             },
-            body, headers, path
+            body, headers, path, addr
         }
     }
 
@@ -45,5 +47,9 @@ impl<'a> Request<'a> {
 
     pub fn get_header(&self, key: &str) -> Option<&&'a str> {
         self.headers.get(key)
+    }
+
+    pub fn ip(&self) -> String {
+        self.addr.to_string()
     }
 }

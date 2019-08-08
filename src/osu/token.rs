@@ -20,10 +20,12 @@ impl Token {
         let mut lock = self.data.lock().unwrap();
         let mut buf = Vec::with_capacity(lock.len());
         buf.append(&mut lock);
+        trace!("cleared queue - {:?} ({:?}, {:?})", self.token, self.id, self.username);
         buf
     }
 
     pub fn enqueue(&self, buf: &[u8]) {
+        trace!("enqueue data {:x?} - {:?} ({:?}, {:?})", buf, self.token, self.id, self.username);
         (*self.data.lock().unwrap()).extend_from_slice(buf);
     }
 
@@ -95,6 +97,7 @@ impl List<Token> {
         };
         let token = Arc::new(token);
         self.insert(token.token(), token.clone());
+        trace!("new token inserted {:?}", token);
         token
     }
 

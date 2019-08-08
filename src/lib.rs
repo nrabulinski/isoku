@@ -3,7 +3,10 @@
 //TODO: Remove all useless comments
 //TODO: Proper logging system
 
+#[macro_use]
+extern crate log;
 extern crate r2d2;
+extern crate bytes;
 
 pub mod http;
 pub mod osu;
@@ -14,7 +17,6 @@ use osu::token::Token;
 use osu::channel::Channel;
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
-use std::sync::Arc;
 use cursor::Cursor;
 
 const EASTEREGG: &'static [u8] = b"
@@ -38,7 +40,6 @@ pub struct Glob {
     pub token_list: List<Token>,
     pub channel_list: List<Channel>,
     pub db_pool: r2d2::Pool<PgConnManager>
-    //pub req_count: AtomicUsize
 }
 
 impl Glob {
@@ -49,7 +50,6 @@ impl Glob {
         Glob {
             token_list: List::new(), 
             channel_list: List::new(), db_pool
-            //req_count: AtomicUsize::new(0)
         }
     }
 }
@@ -61,6 +61,7 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
         let login_data: Vec<&str> = req.body_string().split('\n').collect();
         (login_data[0].trim(), login_data[1])
     };
+    trace!("login request from {} for {:?}", req.get_header("x-real-ip").unwrap_or(&req.ip().as_str()), username);
     if username == "wojexe" {
         return ("0".to_string(), [osu::packets::server::login_failed(), osu::packets::server::notification("wojexe to ciota")].concat());
     }
@@ -70,13 +71,11 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
     if result.len() == 0 {
         return ("0".to_string(), osu::packets::server::login_failed());
     } else if result.len() > 1 {
-        eprintln!("Found more than one result for this combination: {}:{}", username, password);
+        error!("Found more than one result for this combination: {}:{}", username, password);
     };
 
     let id: i32 = result.get(0).get(0);
-    println!("id: {}", id);
     let token = glob.token_list.add_token(id as u32, username.to_string());
-    println!("{:?}", token);
 
     let online: Vec<i32> = glob.token_list.entries().into_iter().map(|token| token.id() as i32).collect();
 
@@ -100,7 +99,6 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
         p::channel_info_end(),
         glob.channel_list.entries().into_iter().flat_map(|channel| p::channel_info(&channel)).collect(),
     ].concat();
-    println!("{:x?}", data);
 
     glob.token_list.enqueue_all(&p::user_panel(&token));
 
@@ -145,7 +143,7 @@ fn osu_packet(req: &Request, glob: &Glob) -> Response {
         Some(&token) => handle_event(req, token, glob)
     };
     
-    println!("=======RAW\nlength: {}\n{}\n{:x?}\n========", data.len(), String::from_utf8_lossy(&data), data);
+    //println!("=======RAW\nlength: {}\n{}\n{:x?}\n========", data.len(), String::from_utf8_lossy(&data), data);
     
     let mut res = Response::from(data.as_ref());
     res.put_headers(&[

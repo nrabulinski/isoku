@@ -163,9 +163,7 @@ pub mod server {
     }
 
     pub fn online_users(user_list: &[i32]) -> Vec<u8> {
-        let data = build_packet(ID::USER_PRESENCE_BUNDLE, user_list);
-        println!("online users:\n{:x?}\n", data);
-        data
+        build_packet(ID::USER_PRESENCE_BUNDLE, user_list)
     }
 
     /* CHAT */

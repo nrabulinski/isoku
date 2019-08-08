@@ -14,6 +14,7 @@ pub fn handle(server: Arc<TcpListener>, glob: Arc<Glob>) {
     for stream in server.incoming() {
         let mut stream = stream.unwrap();
         
+        trace!("accepting request from {}", stream.peer_addr().unwrap());
         let mut buf = [0_u8; 8192];
         
         let raw = {
@@ -39,11 +40,14 @@ pub fn handle(server: Arc<TcpListener>, glob: Arc<Glob>) {
             hashmap
         };
         let body = &raw[size..];
-        let req = Request::new(req.method.unwrap(), body, headers, req.path.unwrap());
+        let req = Request::new(req.method.unwrap(), body, headers, req.path.unwrap(), stream.peer_addr().unwrap());
         //println!("This is the {}. request!\nREQUEST FROM: {}\n------------------------------\nRAW\n{}\n------------------------------\nBODY\n{:?}\n------------------------------", glob.req_count.load(Ordering::Relaxed), stream.peer_addr().unwrap(), String::from_utf8_lossy(&raw), String::from_utf8_lossy(&body));
 
         let response = super::main_handler(&req, glob);//Response::from_raw((b"Content-Type: text/html; charset=utf-8").to_vec(), EASTEREGG.to_vec());
-        stream.write(&response.encode()).unwrap();
+        let response = response.encode();
+        trace!("sending response to {}", stream.peer_addr().unwrap());
+        debug!(target: "verbose-raw-data", "{}\n{:x?}\n{}", stream.peer_addr().unwrap(), response, String::from_utf8_lossy(&response));
+        stream.write(&response).unwrap();
         stream.flush().unwrap();
     }
 }

@@ -1,4 +1,4 @@
-use std::sync::{RwLock, Weak, Arc};
+use std::sync::{RwLock, Arc};
 use super::token::Token;
 use super::List;
 use super::packets::server as packets;
