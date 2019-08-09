@@ -4,7 +4,7 @@ use osu::OsuData;
 use osu::token::Token;
 use super::Cursor;
 
-pub fn send_public_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
+pub fn send_public_message(data: &mut Cursor<'_>, token: &Arc<Token>, glob: &Glob) {
     let (message, to) = {
         let _ = String::decode(data);
         let message = String::decode(data);
@@ -24,7 +24,11 @@ pub fn send_public_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
         else {
             return;
         };
-    println!("{:?}", channel);
+
+    if !channel.has_client(token) {
+        warn!("{:?} tried sending message to {:?} before joining it", token.token(), to);
+        return;
+    }
     let channel_users = channel.users();
 
     let packet = osu::packets::server::send_message(token, to, message);
@@ -35,11 +39,13 @@ pub fn send_public_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
 }
 
 pub fn logout(token: &str, glob: &Glob) {
-    let user =
-        if let Some(token) = glob.token_list.remove(token) { token }
-        else {
+    let user = match glob.token_list.remove(token) {
+        Some(token) => token,
+        _ => {
+            warn!("{:?} tried to log out not being logged in", token);
             return;
-        };
+        }
+    };
 
     let channels = user.joined_channels();
     for channel in channels.iter() {
@@ -48,13 +54,23 @@ pub fn logout(token: &str, glob: &Glob) {
     println!("AFTER LOGOUT:\n{:?}\n{:?}", glob.token_list.entries(), glob.channel_list.entries());
 }
 
+pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
+
+}
+
 pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
     let channel_name = String::decode(data);
 
     if let Some(channel) = glob.channel_list.get(&channel_name) {
         token.join_channel(Arc::downgrade(&channel));
-        channel.add_client(token);
-    };
+        if channel.add_client(token.clone()) {
+            token.enqueue(&osu::packets::server::channel_join_success(channel.name()));
+        } else {
+            warn!("{:?} couldn't join {:?}", token.token(), channel_name);
+        }
+    } else {
+        warn!("{:?} tried to join inexistent channel {:?}", token.token(), channel_name);
+    }
 }
 
 pub fn user_stats_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob) {

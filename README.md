@@ -5,3 +5,5 @@
 *Benchmarks comparing competing servers will go here, I guess*
 
 *Also info on how to set this whole thing up etc will be present here in the future, when I'm ready to go opensource*
+
+**very important note** - Enqueueing any data for tokens happens ***only*** inside of events so one can clearly see what events append what packets and easily make changes if necessary.

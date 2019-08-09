@@ -49,8 +49,11 @@ impl Token {
         1
     }
 
+    pub fn leave_channel(&self) {}
+
     pub fn join_channel(&self, channel: Weak<Channel>) {
-        self.joined_channels.write().unwrap().push(channel)
+        self.joined_channels.write().unwrap().push(channel);
+        trace!("{:?} joined new channel", self.token);
     }
 
     pub fn joined_channels(&self) -> std::sync::RwLockReadGuard<Vec<Weak<Channel>>> {

@@ -30,17 +30,33 @@ impl Channel {
         self.users.read().unwrap().len() as u16
     }
 
-    pub fn add_client(&self, token: Arc<Token>) {
-        // if self.users.read().unwrap().contains(&token) {
-        //     return
-        // };
-        token.enqueue(&packets::channel_join_success(self.name()));
+    pub fn add_client(&self, token: Arc<Token>) -> bool {
+        if self.has_client(&token) {
+            return false;
+        }
+
         self.users.write().unwrap().push(token);
-        println!("Added a user to {:?}", self);
+        trace!("{:?} new client joined", self.name);
+        true
     }
     
     pub fn remove_client(&self, token: &Arc<Token>) {
-        self.users.write().unwrap().remove_item(token);
+        let mut users = self.users.write().unwrap();
+        if let Some(pos) = users.iter().position(|t| Arc::ptr_eq(t, token)) {
+            users.remove(pos);
+            trace!("removed {:?} from {:?}", token.token(), self.name);
+        } else {
+            warn!("tried to remove {:?} from {:?} before they joined it", token.token(), self.name);
+        }
+    }
+
+    pub fn has_client(&self, token: &Arc<Token>) -> bool {
+        for client in self.users.read().unwrap().iter() {
+            if Arc::ptr_eq(client, token) {
+                return true;
+            }
+        }
+        false
     }
 
     pub fn client_name(&self) -> &str {

@@ -114,7 +114,7 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
     
     let request_data = req.body();
     let mut c = Cursor::new(request_data);
-    trace!("handling request from {:?}: {:x?}", token, request_data);
+    trace!("handling request from {:?} @ {}: {:x?}", token, req.ip(), request_data);
     use packets::client::ID;
     while c.remaining() >= 7 {
         let (id, mut data) = packets::client::parse_packet(&mut c);
@@ -124,6 +124,7 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
             ID::SEND_PUBLIC_MESSAGE => events::send_public_message(&mut data, &user, glob),
             ID::LOGOUT => events::logout(token, glob),
             ID::PONG => (),
+            ID::SEND_PRIVATE_MESSAGE => events::send_private_message(&mut data, &user, glob),
             ID::CHANNEL_JOIN => events::channel_join(&mut data, user.clone(), glob),
             ID::USER_STATS_REQUEST => events::user_stats_request(&mut data, &user, glob),
             ID::USER_PRESENCE_REQUEST => events::user_panel_request(&mut data, &user, glob),
