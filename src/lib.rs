@@ -111,29 +111,31 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
         else {
             return ("0".to_string(), osu::packets::server::login_failed());
         };
-
-    //println!("Handling request from user {}", user.username());
     
-    use packets::client::ID;
     let request_data = req.body();
     let mut c = Cursor::new(request_data);
-    println!("Request data: {}\n{:x?}", request_data.len(), request_data);
-    while c.remaining() > 0 {
+    trace!("handling request from {:?}: {:x?}", token, request_data);
+    use packets::client::ID;
+    while c.remaining() >= 7 {
         let (id, mut data) = packets::client::parse_packet(&mut c);
+        trace!("({:?}) parsed packet {:?} {:x?}", token, id, data.data());
         match id {
-            ID::UNKNOWN => eprintln!("Found an unknown packet!\n{:x?}\n", data.data()),
+            ID::UNKNOWN => warn!("unknown packet {:x?}", data.data()),
             ID::SEND_PUBLIC_MESSAGE => events::send_public_message(&mut data, &user, glob),
             ID::LOGOUT => events::logout(token, glob),
             ID::PONG => (),
             ID::CHANNEL_JOIN => events::channel_join(&mut data, user.clone(), glob),
             ID::USER_STATS_REQUEST => events::user_stats_request(&mut data, &user, glob),
             ID::USER_PRESENCE_REQUEST => events::user_panel_request(&mut data, &user, glob),
-            _ => eprintln!("Unhandled packet! {:?}\n{:x?\n}", id, data.data())
+            _ => warn!("unhandled packet {:?}", id)
         }
     }
 
+    if c.remaining() > 0 {
+        warn!("{:?} sent more data than could be parsed {:x?}", token, c.data());
+    }
+
     let data = user.clear_queue();
-    if data.len() > 0 { println!("{:x?}", data) }
     (user.token(), data)
 }
 

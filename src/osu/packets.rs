@@ -277,7 +277,7 @@ pub mod client {
         buf.advance(1);
         let len = u32::decode(buf);
         if buf.remaining() < len as usize {
-            eprintln!("Packet {} had length of {}, which is greater than the length of the buffer", id_raw, len);
+            error!("packet {} had length of {}, which was greater than the length of its data", id_raw, len);
             return (ID::UNKNOWN, Cursor::new(&[]));
         }
         let data = if len > 0 {

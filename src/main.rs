@@ -14,7 +14,9 @@ fn log_init() {
     use fern::colors::Color;
     use fern::Dispatch;
     let colors = fern::colors::ColoredLevelConfig::new().trace(Color::BrightCyan).debug(Color::BrightMagenta);
-    let mut base = Dispatch::new();
+    let base = Dispatch::new();
+
+    let filter = |md: &log::Metadata| md.target() != "verbose-raw-data";
 
     let stdout = Dispatch::new()
         .format(move |out, message, record| {
@@ -26,10 +28,32 @@ fn log_init() {
                 message
             ))
         }).level(log::LevelFilter::Trace)
-        .filter(|md| md.target() != "verbose-raw-data")
+        .filter(filter)
         .chain(std::io::stdout());
 
-    base.chain(stdout).apply().unwrap();
+    let main_file = Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{}][{}][{}:{}]\n{}\n",
+                record.level(),
+                record.module_path().unwrap(),
+                record.file().unwrap(),
+                record.line().unwrap(),
+                message
+            ))
+        }).filter(filter)
+        .chain(fern::log_file("log/main.log").unwrap());
+
+    let http_data = Dispatch::new()
+        .format(|out, message, _| {
+            out.finish(format_args!(
+                "{}\n", message
+            ))
+        })
+        .filter(|md| md.target() == "verbose-raw-data")
+        .chain(fern::log_file("log/http.log").unwrap());
+
+    base.chain(stdout).chain(http_data).chain(main_file).apply().unwrap();
 }
 
 fn main() {
