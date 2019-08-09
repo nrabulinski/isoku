@@ -55,7 +55,21 @@ pub fn logout(token: &str, glob: &Glob) {
 }
 
 pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
+    let (message, to) = {
+        String::decode(data);
+        (String::decode(data), String::decode(data))
+    };
 
+    let to = match glob.token_list.get_username(&to) {
+        Some(user) => user,
+        None => {
+            //TODO: Notify about messaging an inactive user
+            return;
+        }
+    };
+
+    let packet = osu::packets::server::send_message(token, to.username(), message);
+    to.enqueue(&packet);
 }
 
 pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {

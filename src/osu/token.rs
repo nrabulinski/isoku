@@ -116,6 +116,10 @@ impl List<Token> {
     pub fn enqueue_all(&self, data: &[u8]) {
         self.list.read().unwrap().values().map(|t| t.clone()).for_each(|token| token.enqueue(data));
     }
+
+    pub fn get_username(&self, username: &str) -> Option<Arc<Token>> {
+        self.find(|&token| token.username == username)
+    }
 }
 
 // impl TokenList {

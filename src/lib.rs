@@ -2,6 +2,7 @@
 
 //TODO: Remove all useless comments
 //TODO: Proper logging system
+//TODO: Investigate why BytesMut prints to stdout when in release
 
 #[macro_use]
 extern crate log;

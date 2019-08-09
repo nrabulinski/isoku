@@ -27,6 +27,13 @@ impl<T> List<T> {
         }
     }
 
+    pub fn find<F: FnMut(&&Arc<T>) -> bool>(&self, fun: F) -> Option<Arc<T>> {
+        match self.list.read().unwrap().values().find(fun) {
+            Some(val) => Some((*val).clone()),
+            None => None
+        }
+    }
+
     pub fn entries(&self) -> Vec<Arc<T>> {
         self.list.read().unwrap().values().map(|t| t.clone()).collect()
     }

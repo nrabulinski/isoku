@@ -32,6 +32,7 @@ impl Channel {
 
     pub fn add_client(&self, token: Arc<Token>) -> bool {
         if self.has_client(&token) {
+            warn!("{:?} tried to join {:?} despite being in it", token.token(), self.name);
             return false;
         }
 
