@@ -56,8 +56,13 @@ impl Glob {
 use http::{request::Method, Request, Response};
 
 fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
+    let failure = ("0".to_string(), osu::packets::server::login_failed());
     let (username, password) = {
         let login_data: Vec<&str> = req.body_string().split('\n').collect();
+        if login_data.len() < 2 {
+            warn!("didn't recieve enough data from {} {:?}", req.ip(), login_data);
+            return failure;
+        }
         (login_data[0].trim(), login_data[1])
     };
     trace!("login request from {} for {:?}", req.get_header("x-real-ip").unwrap_or(&req.ip().as_str()), username);
@@ -68,7 +73,7 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
     let conn = glob.db_pool.get().unwrap();
     let result = conn.query("SELECT id FROM users WHERE nick = $1 AND password = $2", &[&username, &password]).unwrap();
     if result.len() == 0 {
-        return ("0".to_string(), osu::packets::server::login_failed());
+        return failure;
     } else if result.len() > 1 {
         error!("Found more than one result for this combination: {}:{}", username, password);
     };
