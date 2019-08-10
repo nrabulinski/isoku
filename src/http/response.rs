@@ -1,4 +1,4 @@
-use bytes::BufMut;
+use crate::bytes::Bytes;
 
 pub enum StatusCode {
     OK,
@@ -61,7 +61,7 @@ impl Response {
             let contlen = format!("Content-Lenght: {}\r\n", body.len());
             buf.put(contlen.as_bytes());
             buf.reserve(2 + body.len());
-            buf.put("\r\n");
+            buf.put(b"\r\n".as_ref());
             buf.append(&mut body);
         }
         // if self.log {

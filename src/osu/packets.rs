@@ -1,10 +1,6 @@
-use super::OsuData;
-use super::super::cursor::Cursor;
-
 pub mod server {
-    use super::OsuData;
-    use bytes::{BytesMut, BufMut};
-    use super::super::{token::Token, channel::Channel, encode_str};
+    use crate::bytes::{Bytes, AsBuf};
+    use crate::osu::{token::Token, channel::Channel};
 
     #[allow(non_camel_case_types)]
     enum ID {
@@ -71,13 +67,12 @@ pub mod server {
         SWITCH_TOURNEY_SERVER = 107,
     }
 
-    fn build_packet(id: ID, data: impl OsuData) -> Vec<u8> {
-        let mut buf = BytesMut::with_capacity(7);
-        buf.put_i16_le(id as i16);
-        buf.put_u8(0);
-        let data = data.encode();
-        buf.reserve(4 + data.len());
-        buf.put_i32_le(data.len() as i32);
+    fn build_packet(id: ID, data: impl AsBuf) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(7);
+        buf.put(id as i16);
+        buf.put(0_u8);
+        buf.reserve(4 + data.size());
+        buf.put(data.size() as i32);
         buf.put(data);
         buf.to_vec()
     }
@@ -105,20 +100,17 @@ pub mod server {
 
     pub fn user_panel(token: &Token) -> Vec<u8> {
         let data = {
-            let mut buf = BytesMut::with_capacity(4);
-            buf.put_i32_le(token.id() as i32);
-            
-            let username = token.username().encode();
-            buf.reserve(15 + username.len());
-            
+            let username = token.username();
+            let mut buf = Vec::with_capacity(19 + username.size());
+            buf.put(token.id() as i32);
             buf.put(username);
-            buf.put_u8(0);
-            buf.put_u8(0);
-            buf.put_u8(38);
+            buf.put(0_u8);
+            buf.put(0_u8);
+            buf.put(38_u8);
             let location = token.location();
-            buf.put_f32_le(location[0]);
-            buf.put_f32_le(location[1]);
-            buf.put_u32_le(1);
+            buf.put(location[0]);
+            buf.put(location[1]);
+            buf.put(1.0_f32);
             buf
         };
         build_packet(ID::USER_PANEL, data)
@@ -126,25 +118,22 @@ pub mod server {
 
     pub fn user_stats(token: &Token) -> Vec<u8> {
         let data = {
-            let mut buf = BytesMut::with_capacity(5);
-            buf.put_u32_le(token.id());
-            buf.put_u8(0);          // action id
-            let strings = [
-                "".to_string().encode(),
-                "".to_string().encode()
-            ].concat();
-            buf.reserve(39 + strings.len());
-            buf.put(strings);//"Beta-testing".to_string().encode());
-            //buf.put();
-            buf.put_i32_le(0);      // action mods?
-            buf.put_u8(0);          // game mode
-            buf.put_i32_le(0);      // beatmap id
-            buf.put_u64_le(1);      // ranked score
-            buf.put_f32_le(1.0);  // accuracy
-            buf.put_u32_le(1);      // play count
-            buf.put_u64_le(1);      // total score
-            buf.put_u32_le(1);      // global rank
-            buf.put_u16_le(727);      // pp
+            let action_text = "".to_string();
+            let action_md5 = "".to_string();
+            let mut buf = Vec::with_capacity(44 + action_text.size() + action_md5.size());
+            buf.put(token.id());
+            buf.put(0);          // action id
+            buf.put(action_text);//"Beta-testing".to_string().encode());
+            buf.put(action_md5); //buf.put();
+            buf.put(0_i32);      // action mods?
+            buf.put(0_u8);          // game mode
+            buf.put(0_i32);      // beatmap id
+            buf.put(1_u64);      // ranked score
+            buf.put(1.0_f32);  // accuracy
+            buf.put(1_u32);      // play count
+            buf.put(1_u64);      // total score
+            buf.put(1_u32);      // global rank
+            buf.put(727_u16);      // pp
             buf
         };
         build_packet(ID::USER_STATS, data)
@@ -169,14 +158,12 @@ pub mod server {
     /* CHAT */
     pub fn send_message(from: &Token, to: String, message: String) -> Vec<u8> {
         let data = {
-            let data = [
-                from.username().encode(),
-                message.encode(),
-                to.encode(),
-            ].concat();
-            let mut buf = BytesMut::with_capacity(data.len() + 4);
-            buf.put(data);
-            buf.put_u32_le(from.id());
+            let user = from.username();
+            let mut buf = Vec::with_capacity(user.size() + to.size() + message.size() + 4);
+            buf.put(user);
+            buf.put(message);
+            buf.put(to);
+            buf.put(from.id());
             buf
         };
         build_packet(ID::SEND_MESSAGE, data)
@@ -184,10 +171,13 @@ pub mod server {
 
     pub fn channel_info(channel: &Channel) -> Vec<u8> {
         let data = {
-            let mut buf = BytesMut::new();
-            buf.put(encode_str(channel.name()));
-            buf.put(encode_str(channel.desc()));
-            buf.put_u16_le(channel.users_len());
+            let name = channel.name().to_string();
+            let desc = channel.desc().to_string();
+            let users = channel.users_len();
+            let mut buf = Vec::with_capacity(name.size() + desc.size() + 2);
+            buf.put(name);
+            buf.put(desc);
+            buf.put(users);
             buf
         };
         build_packet(ID::CHANNEL_INFO, data)
@@ -198,7 +188,7 @@ pub mod server {
     }
 
     pub fn channel_join_success(name: &str) -> Vec<u8> {
-        build_packet(ID::CHANNEL_JOIN_SUCCESS, encode_str(name))
+        build_packet(ID::CHANNEL_JOIN_SUCCESS, name.to_string())
     }
 
     /* UTILS */
@@ -207,13 +197,12 @@ pub mod server {
     }
 
     pub fn menu_icon(url: &str) -> Vec<u8> {
-        build_packet(ID::MAIN_MENU_ICON, encode_str(url))
+        build_packet(ID::MAIN_MENU_ICON, url.to_string())
     }
 }
 
 pub mod client {
-    use super::OsuData;
-    use super::Cursor;
+    use crate::bytes::Cursor;
 
     #[allow(non_camel_case_types)]
     #[derive(Debug, enumn::N)]
@@ -272,16 +261,16 @@ pub mod client {
     }
 
     pub fn parse_packet<'b>(buf: &mut Cursor<'b>) -> (ID, Cursor<'b>) {
-        let id_raw = u16::decode(buf);
+        let id_raw: u16 = buf.get().unwrap();
         let id = ID::n(id_raw).unwrap_or_else(|| {eprintln!("Unknown id: {}",id_raw); ID::UNKNOWN});
         buf.advance(1);
-        let len = u32::decode(buf);
+        let len: u32 = buf.get().unwrap();
         if buf.remaining() < len as usize {
             error!("packet {} had length of {}, which was greater than the length of its data", id_raw, len);
             return (ID::UNKNOWN, Cursor::new(&[]));
         }
         let data = if len > 0 {
-            Cursor::new(buf.read(len as usize))
+            Cursor::new(buf.read(len as usize).unwrap())
         } else { Cursor::new(&[]) };
         (id, data)
     }

@@ -1,17 +1,40 @@
-use isoku::osu::OsuData;
+//use isoku::osu::OsuData;
+use isoku::bytes::{Bytes, AsBuf, Cursor};
 use rand::Rng;
 use rand::distributions::{Distribution, Standard};
 use std::mem::size_of;
-use isoku::cursor::Cursor;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
 use std::clone::Clone;
 
-fn basic_test<T: OsuData + PartialEq + Debug + Clone>(value: T) {
-    let encoded = value.clone().encode();
-    let mut cursor = Cursor::new(&encoded);
-    let decoded = <T as OsuData>::decode(&mut cursor);
+fn basic_test<T: AsBuf + PartialEq + Debug + Clone>(value: T) {
+    let mut buf = Vec::new();
+    buf.put(value.clone());
+    let mut cursor = Cursor::new(&buf);
+    let decoded: T = cursor.get().unwrap();
     assert_eq!(decoded, value);
+}
+
+#[test]
+fn str_len() {
+    let mut buf = Vec::new();
+    macro_rules! str_test {
+        ($($s:literal),*) => {
+            $(
+                buf.clear();
+                let value = $s.to_string();
+                buf.put(value.clone());
+                assert_eq!(value.size(), buf.len());
+            )*
+        };
+    }
+    str_test!(
+        "",
+        "osu",
+        "osu test",
+        "looooooooong string",
+        "a very very very very long string"
+    );
 }
 
 #[test]
@@ -42,34 +65,34 @@ fn i32() {
 #[test]
 fn i32_slice() {
     let value = [1_i32];
-    let encoded = value.encode();
-    let mut cursor = Cursor::new(&encoded);
-    let decoded: &[i32] = OsuData::decode(&mut cursor);
-    assert_eq!(encoded.len(), value.len() * size_of::<i32>() + size_of::<u16>());
+    let mut buf = Vec::new();
+    buf.put(value.as_ref());
+    let mut cursor = Cursor::new(&buf);
+    let decoded: &[i32] = cursor.get().unwrap();
+    assert_eq!(buf.len(), value.len() * size_of::<i32>() + size_of::<u16>());
     assert_eq!(decoded, &value);
 }
 
 #[test]
 fn multiple_values() {
     type Test = (i32, u32, i16, u16, String);
+    let mut buf = Vec::new();
     let (a,b,c,d,e): Test = {
         let mut rng = rand::thread_rng();
         (rng.gen(),rng.gen(),rng.gen(),rng.gen(),"osu test".to_string())
     };
-        let encoded = [
-        a.encode(),
-        b.encode(),
-        c.encode(),
-        d.encode(),
-        e.clone().encode()
-    ].concat();
-    let mut cursor = Cursor::new(&encoded);
+    buf.put(a);
+    buf.put(b);
+    buf.put(c);
+    buf.put(d);
+    buf.put(e.clone());
+    let mut buf = Cursor::new(&buf);
     let (x,y,z,i,j): Test = (
-        OsuData::decode(&mut cursor),
-        OsuData::decode(&mut cursor),
-        OsuData::decode(&mut cursor),
-        OsuData::decode(&mut cursor),
-        OsuData::decode(&mut cursor),
+        buf.get().unwrap(),
+        buf.get().unwrap(),
+        buf.get().unwrap(),
+        buf.get().unwrap(),
+        buf.get().unwrap(),
     );
     assert_eq!(x, a);
     assert_eq!(y, b);

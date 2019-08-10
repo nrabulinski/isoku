@@ -7,18 +7,16 @@
 #[macro_use]
 extern crate log;
 extern crate r2d2;
-extern crate bytes;
-
 pub mod http;
 pub mod osu;
-pub mod cursor;
+pub mod bytes;
 mod events;
 use osu::{List, packets};
 use osu::token::Token;
 use osu::channel::Channel;
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
-use cursor::Cursor;
+use bytes::Cursor;
 
 const EASTEREGG: &'static [u8] = b"
 <html>

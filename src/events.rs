@@ -1,15 +1,12 @@
 use std::sync::Arc;
 use super::{Glob, osu};
-use osu::OsuData;
 use osu::token::Token;
-use super::Cursor;
+use crate::bytes::{Cursor, Bytes};
 
 pub fn send_public_message(data: &mut Cursor<'_>, token: &Arc<Token>, glob: &Glob) {
-    let (message, to) = {
-        let _ = String::decode(data);
-        let message = String::decode(data);
-        let to = String::decode(data);
-        (message, to)
+    let (message, to): (String, String) = {
+        data.get::<String>().unwrap();
+        (data.get().unwrap(), data.get().unwrap())
     };
 
     if to == "#multiplayer" || to == "#spectator" {
@@ -55,9 +52,9 @@ pub fn logout(token: &str, glob: &Glob) {
 }
 
 pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
-    let (message, to) = {
-        String::decode(data);
-        (String::decode(data), String::decode(data))
+    let (message, to): (String, String) = {
+        data.get::<String>().unwrap();
+        (data.get().unwrap(), data.get().unwrap())
     };
 
     let to = match glob.token_list.get_username(&to) {
@@ -73,7 +70,7 @@ pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
 }
 
 pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
-    let channel_name = String::decode(data);
+    let channel_name: String = data.get().unwrap();
 
     if let Some(channel) = glob.channel_list.get(&channel_name) {
         token.join_channel(Arc::downgrade(&channel));
@@ -90,7 +87,7 @@ pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
 pub fn user_stats_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob) {
     use osu::packets::server::user_stats;
 
-    let users: &'a[i32] = OsuData::decode(data);
+    let users: &'a[i32] = data.get().unwrap();
     println!("user_stats_request\n{:?}\n", users);
 
     glob.token_list.entries().into_iter()
@@ -101,7 +98,7 @@ pub fn user_stats_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob)
 pub fn user_panel_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob) {
     use osu::packets::server::user_panel;
 
-    let users: &'a[i32] = OsuData::decode(data);
+    let users: &'a[i32] = data.get().unwrap();
     println!("user_panel_request\n{:?}\n", users);
 
     glob.token_list.entries().into_iter()
