@@ -1,7 +1,6 @@
 use std::sync::{RwLock, Arc};
 use super::token::Token;
 use super::List;
-use super::packets::server as packets;
 
 #[derive(Debug)]
 pub struct Channel {
@@ -43,11 +42,12 @@ impl Channel {
     
     pub fn remove_client(&self, token: &Arc<Token>) {
         let mut users = self.users.write().unwrap();
-        if let Some(pos) = users.iter().position(|t| Arc::ptr_eq(t, token)) {
-            users.remove(pos);
-            trace!("removed {:?} from {:?}", token.token(), self.name);
-        } else {
-            warn!("tried to remove {:?} from {:?} before they joined it", token.token(), self.name);
+        match users.iter().position(|t| Arc::ptr_eq(t, token)) {
+            Some(pos) => {
+                users.remove(pos);
+                trace!("removed {:?} from {:?}", token.token(), self.name);
+            },
+            None => warn!("tried to remove {:?} from {:?} before they joined it", token.token(), self.name)
         }
     }
 

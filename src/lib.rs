@@ -2,7 +2,6 @@
 
 //TODO: Remove all useless comments
 //TODO: Proper logging system
-//TODO: Investigate why BytesMut prints to stdout when in release
 
 #[macro_use]
 extern crate log;
@@ -80,6 +79,7 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
 
     let id: i32 = result.get(0).get(0);
     let token = glob.token_list.add_token(id as u32, username.to_string());
+    token.fetch_stats(conn);
 
     let online: Vec<i32> = glob.token_list.entries().into_iter().map(|token| token.id() as i32).collect();
 
@@ -125,13 +125,15 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
         trace!("({:?}) parsed packet {:?} {:x?}", token, id, data.data());
         match id {
             ID::UNKNOWN => warn!("unknown packet {:x?}", data.data()),
+            ID::CHANGE_ACTION => events::change_action(&mut data, &user, glob),
             ID::SEND_PUBLIC_MESSAGE => events::send_public_message(&mut data, &user, glob),
             ID::LOGOUT => events::logout(token, glob),
             ID::PONG => (),
             ID::SEND_PRIVATE_MESSAGE => events::send_private_message(&mut data, &user, glob),
             ID::CHANNEL_JOIN => events::channel_join(&mut data, user.clone(), glob),
+            ID::CHANNEL_PART => events::channel_part(&mut data, &user, glob),
             ID::USER_STATS_REQUEST => events::user_stats_request(&mut data, &user, glob),
-            ID::USER_PRESENCE_REQUEST => events::user_panel_request(&mut data, &user, glob),
+            ID::USER_PANEL_REQUEST => events::user_panel_request(&mut data, &user, glob),
             _ => warn!("unhandled packet {:?}", id)
         }
     }

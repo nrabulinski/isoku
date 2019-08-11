@@ -67,14 +67,30 @@ pub mod server {
         SWITCH_TOURNEY_SERVER = 107,
     }
 
+    macro_rules! encode {
+        ( $( $val:expr ),+ ) => {
+            {
+                let mut size = 0;
+                $(size += $val.size();)+
+                let mut buf = Vec::with_capacity(size);
+                $(
+                    buf.put($val);
+                )+
+                buf
+            }
+        };
+    }
+
     fn build_packet(id: ID, data: impl AsBuf) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(7);
-        buf.put(id as i16);
-        buf.put(0_u8);
-        buf.reserve(4 + data.size());
-        buf.put(data.size() as i32);
-        buf.put(data);
-        buf.to_vec()
+        let id = id as i16;
+        let len = data.size() as i32;
+        encode!{id, 0_u8, len, data}
+        // let mut buf = Vec::with_capacity(11 + data.size());
+        // buf.put(id as i16);
+        // buf.put(0_u8);
+        // buf.put(data.size() as i32);
+        // buf.put(data);
+        // buf
     }
 
     /* LOGIN */
@@ -157,29 +173,26 @@ pub mod server {
 
     /* CHAT */
     pub fn send_message(from: &Token, to: String, message: String) -> Vec<u8> {
-        let data = {
-            let user = from.username();
-            let mut buf = Vec::with_capacity(user.size() + to.size() + message.size() + 4);
-            buf.put(user);
-            buf.put(message);
-            buf.put(to);
-            buf.put(from.id());
-            buf
+        let user = from.username();
+        let data = encode!{
+            user, message, to, from.id()
         };
+        // let data = {
+        //     let user = from.username();
+        //     let mut buf = Vec::with_capacity(user.size() + to.size() + message.size() + 4);
+        //     buf.put(user);
+        //     buf.put(message);
+        //     buf.put(to);
+        //     buf.put(from.id());
+        //     buf
+        // };
         build_packet(ID::SEND_MESSAGE, data)
     }
 
     pub fn channel_info(channel: &Channel) -> Vec<u8> {
-        let data = {
-            let name = channel.name().to_string();
-            let desc = channel.desc().to_string();
-            let users = channel.users_len();
-            let mut buf = Vec::with_capacity(name.size() + desc.size() + 2);
-            buf.put(name);
-            buf.put(desc);
-            buf.put(users);
-            buf
-        };
+        let name = channel.name().to_string();
+        let desc = channel.desc().to_string();
+        let data = encode!{name, desc, channel.users_len()};
         build_packet(ID::CHANNEL_INFO, data)
     }
 
@@ -207,15 +220,15 @@ pub mod client {
     #[allow(non_camel_case_types)]
     #[derive(Debug, enumn::N)]
     pub enum ID {
-        CHANGE_ACTION = 0, //TODO
+        CHANGE_ACTION = 0,
         SEND_PUBLIC_MESSAGE = 1,
         LOGOUT = 2,
-        REQUEST_STATUS_UPDATE = 3,
+        REQUEST_STATUS_UPDATE = 3, //TODO
         PONG = 4,
         START_SPECTATING = 16, //TODO
         STOP_SPECTATING = 17, //TODO
         SPECTATE_FRAMES = 18, //TODO
-        ERROR_REPORT = 20, //TODO
+        //ERROR_REPORT = 20, //TODO?
         CANT_SPECTATE = 21, //TODO
         SEND_PRIVATE_MESSAGE = 25,
         PART_LOBBY = 29, //TODO
@@ -243,7 +256,7 @@ pub mod client {
         FRIEND_ADD = 73, //TODO
         FRIEND_REMOVE = 74, //TODO
         MATCH_CHANGE_TEAM = 77, //TODO
-        CHANNEL_PART = 78, //TODO
+        CHANNEL_PART = 78,
         RECEIVE_UPDATES = 79, //TODO
         SET_AWAY_MESSAGE = 82, //TODO
         //I_R_C_ONLY = 84,
@@ -251,9 +264,9 @@ pub mod client {
         INVITE = 87, //TODO
         MATCH_CHANGE_PASSWORD = 90, //TODO
         SPECIAL_MATCH_INFO_REQUEST = 93, //TODO
-        USER_PRESENCE_REQUEST = 97,
-        USER_PRESENCE_REQUEST_ALL = 98, //TODO?
-        USER_TOGGLE_BLOCK_NON_FRIEND_PM = 99, //TODO
+        USER_PANEL_REQUEST = 97,
+        //USER_PRESENCE_REQUEST_ALL = 98,
+        //USER_TOGGLE_BLOCK_NON_FRIEND_PM = 99, 
         MATCH_ABORT = 106, //TODO
         SPECIAL_JOIN_MATCH_CHANNEL = 108, //TODO
         SPECIAL_LEAVE_MATCH_CHANNEL = 109, //TODO

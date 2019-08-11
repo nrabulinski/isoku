@@ -4,6 +4,18 @@ use super::channel::Channel;
 //use std::collections::HashMap;
 use uuid::Uuid;
 
+type DbConn = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
+
+//TODO: user stats
+#[derive(Debug)]
+pub struct Stats {}
+
+impl Stats {
+    fn new(id: u32, db: DbConn) -> Self {
+        Stats{}
+    }
+}
+
 #[derive(Debug)]
 pub struct Token {
     data: Mutex<Vec<u8>>,
@@ -11,7 +23,8 @@ pub struct Token {
     id: u32,
     username: String,
     rank: u32,
-    joined_channels: RwLock<Vec<Weak<Channel>>>
+    joined_channels: RwLock<Vec<Weak<Channel>>>,
+    stats: RwLock<Option<Stats>>
     //location: [f32; 2]
 }
 
@@ -49,7 +62,16 @@ impl Token {
         1
     }
 
-    pub fn leave_channel(&self) {}
+    pub fn leave_channel(&self, channel: Arc<Channel>) {
+        let mut channels = self.joined_channels.write().unwrap();
+        match channels.iter().position(|ch| Arc::ptr_eq(&channel, &ch.upgrade().unwrap())) {
+            Some(pos) => {
+                channels.remove(pos); 
+                trace!("{:?} left {:?}", self.token, channel.name());
+            },
+            None => warn!("{:?} tried leaving {:?} not being in it", self.token, channel.name())
+        }
+    }
 
     pub fn join_channel(&self, channel: Weak<Channel>) {
         self.joined_channels.write().unwrap().push(channel);
@@ -58,6 +80,11 @@ impl Token {
 
     pub fn joined_channels(&self) -> std::sync::RwLockReadGuard<Vec<Weak<Channel>>> {
         self.joined_channels.read().unwrap()
+    }
+
+    pub fn fetch_stats(&self, db: DbConn) {
+        let mut stats = self.stats.write().unwrap();
+        *stats = Some(Stats::new(self.id, db));
     }
 }
 
@@ -96,7 +123,8 @@ impl List<Token> {
             id, username: name,
             rank: 38, token,
             data: Mutex::new(Vec::new()),
-            joined_channels: RwLock::new(Vec::new())
+            joined_channels: RwLock::new(Vec::new()),
+            stats: RwLock::new(None)
         };
         let token = Arc::new(token);
         self.insert(token.token(), token.clone());
