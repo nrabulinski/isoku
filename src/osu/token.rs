@@ -4,16 +4,74 @@ use super::channel::Channel;
 //use std::collections::HashMap;
 use uuid::Uuid;
 
-type DbConn = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
+type DbConn = postgres::Connection;
+
+pub struct Panel {}
+
+impl Panel {
+    fn new() -> Self {
+        Panel{}
+    }
+}
+
+#[derive(Debug)]
+pub enum GameMode { Standard, Taiko, CtB, Mania }
+
+#[derive(Debug)]
+pub enum Action { 
+    Idle,
+    Afk,
+    Playing,
+    Editing,
+    Modding,
+    Multiplayer,
+    Watching,
+    Unknown,
+    Testing,
+    Submitting,
+    Paused,
+    Lobby,
+    Multiplaying,
+    OsuDirect,
+    None
+}
 
 //TODO: user stats
 #[derive(Debug)]
-pub struct Stats {}
+pub struct Stats {
+    action: Action,
+    action_text: String,
+    action_md5: String,
+    action_mods: u32,
+    game_mode: GameMode,
+    beatmap_id: u32,
+    ranked_score: u64,
+    accuracy: f32,
+    playcount: u32,
+    total_score: u64,
+    rank: u32,
+    pp: u16
+}
 
 impl Stats {
-    fn new(id: u32, db: DbConn) -> Self {
-        Stats{}
+    fn new() -> Self {
+        Stats {
+            action: Action::Idle,
+            action_text: "".to_string(),
+            action_md5: "".to_string(),
+            action_mods: 0,
+            game_mode: GameMode::Standard,
+            beatmap_id: 0,
+            ranked_score: 0,
+            accuracy: 1.0,
+            playcount: 0,
+            total_score: 0,
+            rank: 1,
+            pp: 0
+        }
     }
+
+    fn fetch(&mut self, mode: GameMode, db: &DbConn) {}
 }
 
 #[derive(Debug)]
@@ -24,7 +82,7 @@ pub struct Token {
     username: String,
     rank: u32,
     joined_channels: RwLock<Vec<Weak<Channel>>>,
-    stats: RwLock<Option<Stats>>
+    stats: RwLock<Stats>
     //location: [f32; 2]
 }
 
@@ -82,9 +140,9 @@ impl Token {
         self.joined_channels.read().unwrap()
     }
 
-    pub fn fetch_stats(&self, db: DbConn) {
+    pub fn fetch_stats(&self, mode: GameMode, db: &DbConn) {
         let mut stats = self.stats.write().unwrap();
-        *stats = Some(Stats::new(self.id, db));
+        stats.fetch(mode, db);
     }
 }
 
@@ -124,7 +182,7 @@ impl List<Token> {
             rank: 38, token,
             data: Mutex::new(Vec::new()),
             joined_channels: RwLock::new(Vec::new()),
-            stats: RwLock::new(None)
+            stats: RwLock::new(Stats::new())
         };
         let token = Arc::new(token);
         self.insert(token.token(), token.clone());

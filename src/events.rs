@@ -11,12 +11,14 @@ macro_rules! event_data {
     ( $data:expr; $( $type:ty ),* ) => { ( $( $data.get::<$type>().unwrap() ),* ) };
 }
 
-pub fn change_action(data: &mut Cursor, _token: &Token, _glob: &Glob) {
+pub fn change_action(data: &mut Cursor, token: &Token, glob: &Glob) {
     let data = event_data!(data; u8, String, String, u32, u8, i32); //(id, text, md5, mods, gm, beatmap_id)
     //TODO; actually update the user, I guess
     //also I was thinking maybe below certain user count
     //I might send the presence to everyone so that it gets automatically updated?
-    trace!("{:?} changed their action to {:?}", _token.token(), data);
+    trace!("{:?} changed their action to {:?}", token.token(), data);
+
+    glob.token_list.enqueue_all(&osu::packets::server::user_panel(token));
 }
 
 pub fn send_public_message(data: &mut Cursor<'_>, token: &Arc<Token>, glob: &Glob) {
@@ -62,6 +64,7 @@ pub fn logout(token: &str, glob: &Glob) {
         channel.upgrade().unwrap().remove_client(&user);
     }
     println!("AFTER LOGOUT:\n{:?}\n{:?}", glob.token_list.entries(), glob.channel_list.entries());
+    glob.token_list.enqueue_all(&osu::packets::server::logout(&user));
 }
 
 pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {

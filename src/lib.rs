@@ -11,7 +11,7 @@ pub mod osu;
 pub mod bytes;
 mod events;
 use osu::{List, packets};
-use osu::token::Token;
+use osu::token::{Token, GameMode};
 use osu::channel::Channel;
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
@@ -79,7 +79,7 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
 
     let id: i32 = result.get(0).get(0);
     let token = glob.token_list.add_token(id as u32, username.to_string());
-    token.fetch_stats(conn);
+    token.fetch_stats(GameMode::Standard, &conn);
 
     let online: Vec<i32> = glob.token_list.entries().into_iter().map(|token| token.id() as i32).collect();
 

@@ -17,24 +17,20 @@ fn basic_test<T: AsBuf + PartialEq + Debug + Clone>(value: T) {
 
 #[test]
 fn str_len() {
-    let mut buf = Vec::new();
-    macro_rules! str_test {
-        ($($s:literal),*) => {
-            $(
-                buf.clear();
-                let value = $s.to_string();
-                buf.put(value.clone());
-                assert_eq!(value.size(), buf.len());
-            )*
-        };
-    }
-    str_test!(
-        "",
-        "osu",
-        "osu test",
+    let strings = [
+        "a very very very very long string",
         "looooooooong string",
-        "a very very very very long string"
-    );
+        "osu test",
+        "osu",
+        ""
+    ];
+    let mut buf = Vec::new();
+    for s in strings.into_iter() {
+        buf.clear();
+        let value = s.to_string();
+        buf.put(value.clone());
+        assert_eq!(value.size(), buf.len());
+    }
 }
 
 #[test]
@@ -86,13 +82,13 @@ fn multiple_values() {
     buf.put(c);
     buf.put(d);
     buf.put(e.clone());
-    let mut buf = Cursor::new(&buf);
+    let mut cursor = Cursor::new(&buf);
     let (x,y,z,i,j): Test = (
-        buf.get().unwrap(),
-        buf.get().unwrap(),
-        buf.get().unwrap(),
-        buf.get().unwrap(),
-        buf.get().unwrap(),
+        cursor.get().unwrap(),
+        cursor.get().unwrap(),
+        cursor.get().unwrap(),
+        cursor.get().unwrap(),
+        cursor.get().unwrap(),
     );
     assert_eq!(x, a);
     assert_eq!(y, b);

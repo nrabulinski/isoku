@@ -118,6 +118,12 @@ impl AsBuf for &[u8] {
     }
 }
 
+impl AsBuf for () {
+    fn encode(self, _: &mut Buffer) {}
+    fn decode(_: &mut Cursor) -> Result<Self> { Ok(()) }
+    fn size(&self) -> usize { 0 }
+}
+
 mod leb {
     use super::{Bytes, Cursor};
 
@@ -177,13 +183,15 @@ impl AsBuf for String {
 
     fn size(&self) -> usize {
         use std::convert::TryInto;
-        let mut len: u32 = self.len().try_into().unwrap();
-        let mut result = 0;
-        while len != 0 {
-            len >>= 7;
-            result += 1;
+        let mut result = self.as_bytes().len();
+        if self.len() > 0 {
+            let mut len: u32 = self.as_bytes().len().try_into().unwrap();
+            while len != 0 {
+                len >>= 7;
+                result += 1;
+            }
         }
-        self.as_bytes().len() + result + 1
+        result + 1
     }
 }
 

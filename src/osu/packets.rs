@@ -67,30 +67,37 @@ pub mod server {
         SWITCH_TOURNEY_SERVER = 107,
     }
 
+    // macro_rules! sum {
+    //     ( $a:expr ) => { $a };
+    //     ( $a:expr, $( $b:expr ),+ ) => { $a + sum!($( $b ),+) };
+    // }
+
     macro_rules! encode {
-        ( $( $val:expr ),+ ) => {
-            {
-                let mut size = 0;
-                $(size += $val.size();)+
-                let mut buf = Vec::with_capacity(size);
-                $(
-                    buf.put($val);
-                )+
-                buf
-            }
-        };
+        ( $( $val:expr ),+ ) => { {
+            let size = 0 $(+ $val.size())+;
+            //$(size += $val.size();)+
+            let mut buf = Vec::with_capacity(size);
+            $( buf.put($val); )+
+            buf
+        } };
     }
+
+    const EMPTY_BYTE: u8 = 0;
 
     fn build_packet(id: ID, data: impl AsBuf) -> Vec<u8> {
         let id = id as i16;
         let len = data.size() as i32;
-        encode!{id, 0_u8, len, data}
-        // let mut buf = Vec::with_capacity(11 + data.size());
-        // buf.put(id as i16);
-        // buf.put(0_u8);
-        // buf.put(data.size() as i32);
-        // buf.put(data);
-        // buf
+        //encode!{id, EMPTY_BYTE, len, data}
+        let mut buf = Vec::with_capacity(11 + data.size());
+        buf.put(id as i16);
+        buf.put(0_u8);
+        buf.put(len);
+        buf.put(data);
+        buf
+    }
+
+    pub fn logout(token: &Token) -> Vec<u8> {
+        build_packet(ID::USER_LOGOUT, encode!{token.id(), EMPTY_BYTE})
     }
 
     /* LOGIN */
@@ -114,6 +121,7 @@ pub mod server {
         build_packet(ID::SUPPORTER_GMT, 38_u32)
     }
 
+    /* USER INFO */
     pub fn user_panel(token: &Token) -> Vec<u8> {
         let data = {
             let username = token.username();
@@ -126,7 +134,7 @@ pub mod server {
             let location = token.location();
             buf.put(location[0]);
             buf.put(location[1]);
-            buf.put(1.0_f32);
+            buf.put(1_u32);
             buf
         };
         build_packet(ID::USER_PANEL, data)
@@ -138,10 +146,10 @@ pub mod server {
             let action_md5 = "".to_string();
             let mut buf = Vec::with_capacity(44 + action_text.size() + action_md5.size());
             buf.put(token.id());
-            buf.put(0);          // action id
-            buf.put(action_text);//"Beta-testing".to_string().encode());
-            buf.put(action_md5); //buf.put();
-            buf.put(0_i32);      // action mods?
+            buf.put(0_u8);          // action id
+            buf.put(action_text);
+            buf.put(action_md5);
+            buf.put(0_i32);      // action mods
             buf.put(0_u8);          // game mode
             buf.put(0_i32);      // beatmap id
             buf.put(1_u64);      // ranked score
@@ -192,8 +200,8 @@ pub mod server {
     pub fn channel_info(channel: &Channel) -> Vec<u8> {
         let name = channel.name().to_string();
         let desc = channel.desc().to_string();
-        let data = encode!{name, desc, channel.users_len()};
-        build_packet(ID::CHANNEL_INFO, data)
+        let users = channel.users_len();
+        build_packet(ID::CHANNEL_INFO, encode!{name, desc, users})
     }
 
     pub fn channel_info_end() -> Vec<u8> {
@@ -204,6 +212,9 @@ pub mod server {
         build_packet(ID::CHANNEL_JOIN_SUCCESS, name.to_string())
     }
 
+    /* MULTIPLAYER */
+    //TODO: multiplayer
+
     /* UTILS */
     pub fn notification(text: &str) -> Vec<u8> {
         build_packet(ID::NOTIFICATION, text.to_string())
@@ -211,6 +222,10 @@ pub mod server {
 
     pub fn menu_icon(url: &str) -> Vec<u8> {
         build_packet(ID::MAIN_MENU_ICON, url.to_string())
+    }
+
+    pub fn jumpscare(message: &str) -> Vec<u8> {
+        build_packet(ID::JUMPSCARE, message.to_string())
     }
 }
 
@@ -228,7 +243,7 @@ pub mod client {
         START_SPECTATING = 16, //TODO
         STOP_SPECTATING = 17, //TODO
         SPECTATE_FRAMES = 18, //TODO
-        //ERROR_REPORT = 20, //TODO?
+        //ERROR_REPORT = 20,
         CANT_SPECTATE = 21, //TODO
         SEND_PRIVATE_MESSAGE = 25,
         PART_LOBBY = 29, //TODO

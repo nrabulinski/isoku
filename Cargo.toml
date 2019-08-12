@@ -12,6 +12,7 @@ r2d2 = "0.8.5"
 r2d2_postgres = "0.14.0"
 log = "0.4.8"
 fern = { version = "0.5.8", features = ["colored"] }
+postgres = "0.15.2"
 
 [dev-dependencies]
 rand = "0.7.0"
