@@ -64,6 +64,29 @@ impl AsBuf for u8 {
     fn size(&self) -> usize { 1 }
 }
 
+impl AsBuf for Vec<u32> {
+    fn encode(self, buf: &mut Buffer) {
+        let slice = unsafe {
+            let data = self.as_ptr() as *const u8;
+            std::slice::from_raw_parts(data, self.len() * 4)
+        };
+        buf.put(self.len() as u16);
+        buf.extend_from_slice(slice);
+    }
+
+    fn decode(buf: &mut Cursor) -> Result<Self> {
+        let len = buf.get::<u16>()? as usize;
+        let data = buf.read(len * 4)?.as_ptr() as *const u32;
+        unsafe {
+            Ok(std::slice::from_raw_parts(data, len).to_vec())
+        }
+    }
+
+    fn size(&self) -> usize {
+        self.len() * 4 + 2
+    }
+}
+
 impl AsBuf for &[i32] {
     fn encode(self, buf: &mut Buffer) {
         let slice = unsafe {

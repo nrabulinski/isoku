@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex, RwLock, Weak};
 use super::List;
 use super::channel::Channel;
+use super::GameMode;
 //use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -13,9 +14,6 @@ impl Panel {
         Panel{}
     }
 }
-
-#[derive(Debug)]
-pub enum GameMode { Standard, Taiko, CtB, Mania }
 
 #[derive(Debug)]
 pub enum Action { 
@@ -71,7 +69,11 @@ impl Stats {
         }
     }
 
-    fn fetch(&mut self, mode: GameMode, db: &DbConn) {}
+    fn fetch(id: i32, mode: GameMode, db: &DbConn) -> Self {
+        Self::new()
+    }
+
+    fn refresh(&mut self, id: i32, mode: GameMode, db: &DbConn) {}
 }
 
 #[derive(Debug)]
@@ -116,8 +118,8 @@ impl Token {
         &[0.0, 0.0]
     }
 
-    pub fn rank(&self) -> u32 {
-        1
+    pub fn rank(&self) -> u8 {
+        38
     }
 
     pub fn leave_channel(&self, channel: Arc<Channel>) {
@@ -140,9 +142,9 @@ impl Token {
         self.joined_channels.read().unwrap()
     }
 
-    pub fn fetch_stats(&self, mode: GameMode, db: &DbConn) {
+    pub fn refresh_stats(&self, mode: GameMode, db: &DbConn) {
         let mut stats = self.stats.write().unwrap();
-        stats.fetch(mode, db);
+        stats.refresh(self.id as _, mode, db);
     }
 }
 
@@ -166,7 +168,7 @@ impl std::cmp::PartialEq<i32> for Token {
 
 impl std::cmp::PartialEq<Arc<Token>> for Token {
     fn eq(&self, other: &Arc<Token>) -> bool {
-        (*other).id() == self.id
+        self.id == (*other).id()
     }
 }
 

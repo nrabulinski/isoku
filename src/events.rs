@@ -82,6 +82,52 @@ pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
     to.enqueue(&packet);
 }
 
+pub fn join_lobby(token: &Token, glob: &Glob) {
+    glob.match_list.entries()
+        .into_iter()
+        .for_each(|m| token.enqueue(&osu::packets::server::create_match(&m)));
+}
+
+#[derive(Debug)]
+pub struct MatchSettings {
+    id: u16, in_progress: u8,
+    mods: u32, name: String,
+    password: String, beatmap_name: String,
+    beatmap_id: i32, beatmap_md5: String,
+    host_user_id: i32, game_mode: u8, score_type: u8,
+    team_type: u8, freemod: u8
+}
+
+fn match_data(data: &mut Cursor) -> MatchSettings {
+    let (id, in_progress, _, mods, name, password, beatmap_name, beatmap_id, beatmap_md5) =
+        event_data!(data; u16, u8, u8, u32, String, String, String, i32, String);
+
+    //skip not used slot status + slot team
+    data.advance(16 * 2);
+
+    let (host_user_id, game_mode, score_type, team_type, freemod) =
+        event_data!(data; i32, u8, u8, u8, u8);
+
+    let data = MatchSettings {
+        id, in_progress, mods, name, password, beatmap_name, beatmap_id, beatmap_md5,
+        host_user_id, game_mode, score_type, team_type, freemod
+    };
+    
+    trace!("Parsed match settings: {:?}", data);
+
+    data
+}
+
+pub fn create_match(data: &mut Cursor, token: &Token, glob: &Glob) {
+    let MatchSettings { name, password, beatmap_id, beatmap_name, beatmap_md5, game_mode,
+        id: _, in_progress: _, mods: _, host_user_id: _, score_type: _, team_type: _, freemod: _ } =
+        match_data(data);
+
+    let conn = glob.db_pool.get().unwrap();
+    let multi = glob.match_list.create_match(name, password, beatmap_id, beatmap_name, beatmap_md5, game_mode, token.id(), &conn);
+    trace!("Created new match {:?}", multi);
+}
+
 pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
     let channel_name = event_data!(data; String);
 

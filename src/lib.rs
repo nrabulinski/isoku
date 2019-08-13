@@ -10,9 +10,10 @@ pub mod http;
 pub mod osu;
 pub mod bytes;
 mod events;
-use osu::{List, packets};
-use osu::token::{Token, GameMode};
+use osu::{List, packets, GameMode};
+use osu::token::Token;
 use osu::channel::Channel;
+use osu::matches::Match;
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
 use bytes::Cursor;
@@ -37,7 +38,8 @@ world's first osu private server written in Rust
 pub struct Glob {
     pub token_list: List<Token>,
     pub channel_list: List<Channel>,
-    pub db_pool: r2d2::Pool<PgConnManager>
+    pub db_pool: r2d2::Pool<PgConnManager>,
+    pub match_list: List<Match>
 }
 
 impl Glob {
@@ -47,7 +49,9 @@ impl Glob {
         let db_pool = r2d2::Pool::builder().build(db_manager).unwrap();
         Glob {
             token_list: List::new(), 
-            channel_list: List::new(), db_pool
+            channel_list: List::new(),
+            match_list: List::new(),
+            db_pool
         }
     }
 }
@@ -79,7 +83,7 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
 
     let id: i32 = result.get(0).get(0);
     let token = glob.token_list.add_token(id as u32, username.to_string());
-    token.fetch_stats(GameMode::Standard, &conn);
+    token.refresh_stats(GameMode::Standard, &conn);
 
     let online: Vec<i32> = glob.token_list.entries().into_iter().map(|token| token.id() as i32).collect();
 
@@ -98,7 +102,8 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
         //p::menu_icon("https://i.imgur.com/DmwAGYO.png"),
 
         p::online_users(&online),
-        //glob.token_list.entries().into_iter().flat_map(|token| p::user_panel(&token)).collect(),
+        //below some threshold we can just append all users' panels I guess
+        glob.token_list.entries().into_iter().flat_map(|token| p::user_panel(&token)).collect(),
 
         p::channel_info_end(),
         glob.channel_list.entries().into_iter().flat_map(|channel| p::channel_info(&channel)).collect(),
@@ -130,6 +135,8 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
             ID::LOGOUT => events::logout(token, glob),
             ID::PONG => (),
             ID::SEND_PRIVATE_MESSAGE => events::send_private_message(&mut data, &user, glob),
+            ID::JOIN_LOBBY => events::join_lobby(&user, glob),
+            ID::CREATE_MATCH => events::create_match(&mut data, &user, glob),
             ID::CHANNEL_JOIN => events::channel_join(&mut data, user.clone(), glob),
             ID::CHANNEL_PART => events::channel_part(&mut data, &user, glob),
             ID::USER_STATS_REQUEST => events::user_stats_request(&mut data, &user, glob),

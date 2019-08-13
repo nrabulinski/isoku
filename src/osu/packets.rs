@@ -1,6 +1,6 @@
 pub mod server {
     use crate::bytes::{Bytes, AsBuf};
-    use crate::osu::{token::Token, channel::Channel};
+    use crate::osu::{token::Token, channel::Channel, matches::Match};
 
     #[allow(non_camel_case_types)]
     enum ID {
@@ -123,26 +123,17 @@ pub mod server {
 
     /* USER INFO */
     pub fn user_panel(token: &Token) -> Vec<u8> {
-        let data = {
-            let username = token.username();
-            let mut buf = Vec::with_capacity(19 + username.size());
-            buf.put(token.id() as i32);
-            buf.put(username);
-            buf.put(0_u8);
-            buf.put(0_u8);
-            buf.put(38_u8);
-            let location = token.location();
-            buf.put(location[0]);
-            buf.put(location[1]);
-            buf.put(1_u32);
-            buf
-        };
+        let id = token.id();
+        let username = token.username();
+        let rank = token.rank();
+        let location = token.location();
+        let data = encode!{id, username, EMPTY_BYTE, EMPTY_BYTE, rank, location[0], location[1], 1_u32};
         build_packet(ID::USER_PANEL, data)
     }
 
     pub fn user_stats(token: &Token) -> Vec<u8> {
         let data = {
-            let action_text = "".to_string();
+            let action_text = "beta-testing".to_string();
             let action_md5 = "".to_string();
             let mut buf = Vec::with_capacity(44 + action_text.size() + action_md5.size());
             buf.put(token.id());
@@ -214,6 +205,24 @@ pub mod server {
 
     /* MULTIPLAYER */
     //TODO: multiplayer
+    pub fn create_match(m: &Match) -> Vec<u8> {
+        let data = encode!{
+            m.id(),
+            m.in_progress(), EMPTY_BYTE,
+            m.mods(),
+            m.name(),
+            m.password(),
+            m.beatmap_name(),
+            m.beatmap_id(),
+            m.beatmap_md5(),
+            m.slots(), m.teams(), m.users(), m.host(),
+            m.game_mode(),
+            m.score_type(), m.team_type(),
+            m.freemod(), m.slot_mods(),
+            0_u32
+        };
+        build_packet(ID::NEW_MATCH, data)
+    }
 
     /* UTILS */
     pub fn notification(text: &str) -> Vec<u8> {
@@ -247,7 +256,7 @@ pub mod client {
         CANT_SPECTATE = 21, //TODO
         SEND_PRIVATE_MESSAGE = 25,
         PART_LOBBY = 29, //TODO
-        JOIN_LOBBY = 30, //TODO
+        JOIN_LOBBY = 30, //TODO: join #lobby channel
         CREATE_MATCH = 31, //TODO
         JOIN_MATCH = 32, //TODO
         PART_MATCH = 33, //TODO
@@ -290,7 +299,7 @@ pub mod client {
 
     pub fn parse_packet<'b>(buf: &mut Cursor<'b>) -> (ID, Cursor<'b>) {
         let id_raw: u16 = buf.get().unwrap();
-        let id = ID::n(id_raw).unwrap_or_else(|| {eprintln!("Unknown id: {}",id_raw); ID::UNKNOWN});
+        let id = ID::n(id_raw).unwrap_or_else(|| {warn!("Unknown id: {}", id_raw); ID::UNKNOWN});
         buf.advance(1);
         let len: u32 = buf.get().unwrap();
         if buf.remaining() < len as usize {
