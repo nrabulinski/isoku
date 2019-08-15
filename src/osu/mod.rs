@@ -6,8 +6,9 @@ pub mod token;
 pub mod channel;
 pub mod matches;
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone, enumn::N)]
-pub enum GameMode { Standard, Taiko, CtB, Mania }
+pub enum GameMode { STANDARD, TAIKO, CTB, MANIA }
 
 #[derive(Debug)]
 pub struct List<V> {

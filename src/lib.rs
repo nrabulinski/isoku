@@ -17,6 +17,7 @@ use osu::matches::Match;
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
 use bytes::Cursor;
+use std::sync::RwLock;
 
 const EASTEREGG: &'static [u8] = b"
 <html>
@@ -39,7 +40,8 @@ pub struct Glob {
     pub token_list: List<Token>,
     pub channel_list: List<Channel>,
     pub db_pool: r2d2::Pool<PgConnManager>,
-    pub match_list: List<Match>
+    pub match_list: List<Match>,
+    pub menu_icon: RwLock<Option<String>>
 }
 
 impl Glob {
@@ -51,7 +53,7 @@ impl Glob {
             token_list: List::new(), 
             channel_list: List::new(),
             match_list: List::new(),
-            db_pool
+            db_pool, menu_icon: RwLock::new(None)
         }
     }
 }
@@ -83,12 +85,12 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
 
     let id: i32 = result.get(0).get(0);
     let token = glob.token_list.add_token(id as u32, username.to_string());
-    token.refresh_stats(GameMode::Standard, &conn);
+    token.refresh_stats(GameMode::STANDARD, &conn);
 
     let online: Vec<i32> = glob.token_list.entries().into_iter().map(|token| token.id() as i32).collect();
 
     use packets::server as p;
-    let data = [
+    let mut data = [
         p::silence_end(0),
         p::protocol_ver(),
         p::user_id(token.id()),
@@ -98,16 +100,19 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
 
         p::user_panel(&token),
         p::user_stats(&token),
-        
-        //p::menu_icon("https://i.imgur.com/DmwAGYO.png"),
 
         p::online_users(&online),
         //below some threshold we can just append all users' panels I guess
         glob.token_list.entries().into_iter().flat_map(|token| p::user_panel(&token)).collect(),
 
         p::channel_info_end(),
-        glob.channel_list.entries().into_iter().flat_map(|channel| p::channel_info(&channel)).collect(),
+        glob.channel_list.entries().into_iter().filter(|channel| channel.public()).flat_map(|channel| p::channel_info(&channel)).collect(),
     ].concat();
+
+    let menu_icon = glob.menu_icon.read().unwrap();
+    if menu_icon.is_some() {
+        data.extend(p::menu_icon(menu_icon.as_ref().unwrap()));
+    }
 
     glob.token_list.enqueue_all(&p::user_panel(&token));
 
@@ -159,8 +164,6 @@ fn osu_packet(req: &Request, glob: &Glob) -> Response {
         Some(&token) => handle_event(req, token, glob)
     };
     
-    //println!("=======RAW\nlength: {}\n{}\n{:x?}\n========", data.len(), String::from_utf8_lossy(&data), data);
-    
     let mut res = Response::from(data.as_ref());
     res.put_headers(&[
         ("cho-token", &token),
@@ -169,7 +172,6 @@ fn osu_packet(req: &Request, glob: &Glob) -> Response {
         ("Connection", "keep-alive"),
         ("Content-Type", "text/html; charset=UTF-8")
     ]);
-    //res.log_it();
     res
 }
 

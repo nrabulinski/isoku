@@ -6,14 +6,15 @@ use super::List;
 pub struct Channel {
     name: String,
     desc: String,
-    users: RwLock<Vec<Arc<Token>>>
+    users: RwLock<Vec<Arc<Token>>>,
+    public: bool
 }
 
 impl Channel {
-    pub fn new(name: String, desc: String) -> Self {
+    pub fn new(name: String, desc: String, public: bool) -> Self {
         Channel {
-            name, desc,
-            users: RwLock::new(Vec::new())
+            name, desc, public,
+            users: RwLock::new(Vec::new()),
         }
     }
 
@@ -73,11 +74,15 @@ impl Channel {
     pub fn users(&self) -> std::sync::RwLockReadGuard<Vec<Arc<Token>>> {
         self.users.read().unwrap()
     }
+
+    pub fn public(&self) -> bool { self.public }
 }
 
 impl List<Channel> {
-    pub fn add_channel(&self, name: String, desc: String) {
-        let channel = Arc::new(Channel::new(name.clone(), desc));
-        self.list.write().unwrap().insert(name, channel);
+    pub fn add_channel(&self, name: String, desc: String, public: bool) -> Arc<Channel> {
+        let channel = Arc::new(Channel::new(name.clone(), desc, public));
+        self.list.write().unwrap().insert(name, channel.clone());
+        trace!("Created a new channel: {:?}", channel);
+        channel
     }
 }

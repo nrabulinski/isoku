@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex, RwLock, Weak};
 use super::List;
 use super::channel::Channel;
 use super::GameMode;
-//use std::collections::HashMap;
 use uuid::Uuid;
 
 type DbConn = postgres::Connection;
@@ -15,7 +14,7 @@ impl Panel {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Action { 
     Idle,
     Afk,
@@ -37,18 +36,18 @@ pub enum Action {
 //TODO: user stats
 #[derive(Debug)]
 pub struct Stats {
-    action: Action,
-    action_text: String,
-    action_md5: String,
-    action_mods: u32,
-    game_mode: GameMode,
-    beatmap_id: u32,
-    ranked_score: u64,
-    accuracy: f32,
-    playcount: u32,
-    total_score: u64,
-    rank: u32,
-    pp: u16
+    pub action: Action,
+    pub action_text: String,
+    pub action_md5: String,
+    pub action_mods: u32,
+    pub game_mode: GameMode,
+    pub beatmap_id: u32,
+    pub ranked_score: u64,
+    pub accuracy: f32,
+    pub playcount: u32,
+    pub total_score: u64,
+    pub rank: u32,
+    pub pp: u16
 }
 
 impl Stats {
@@ -58,7 +57,7 @@ impl Stats {
             action_text: "".to_string(),
             action_md5: "".to_string(),
             action_mods: 0,
-            game_mode: GameMode::Standard,
+            game_mode: GameMode::STANDARD,
             beatmap_id: 0,
             ranked_score: 0,
             accuracy: 1.0,
@@ -146,6 +145,10 @@ impl Token {
         let mut stats = self.stats.write().unwrap();
         stats.refresh(self.id as _, mode, db);
     }
+
+    pub fn read_stats(&self) -> std::sync::RwLockReadGuard<Stats> {
+        self.stats.read().unwrap()
+    }
 }
 
 impl std::cmp::PartialEq for Token {
@@ -171,10 +174,6 @@ impl std::cmp::PartialEq<Arc<Token>> for Token {
         self.id == (*other).id()
     }
 }
-
-// pub struct TokenList {
-//     list: HashMap<String, Arc<Token>>
-// }
 
 impl List<Token> {
     pub fn add_token(&self, id: u32, name: String) -> Arc<Token> {
@@ -209,16 +208,3 @@ impl List<Token> {
         self.find(|&token| token.username == username)
     }
 }
-
-// impl TokenList {
-//     pub fn new() -> Self {
-//         TokenList { list: HashMap::new() }
-//     }
-
-//     pub fn get(&self, token: String) -> Option<Arc<Token>> {
-//         match self.list.get(&token) {
-//             Some(token) => Some((*token).clone()),
-//             None => None
-//         }
-//     }
-// }

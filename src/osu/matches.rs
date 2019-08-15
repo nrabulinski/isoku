@@ -83,7 +83,7 @@ impl Match {
         for _ in 0..16 { slots.push(Slot::new()) }
         Match {
             id, name, password, beatmap_id, beatmap_name, beatmap_md5,
-            game_mode: GameMode::n(game_mode).unwrap_or(GameMode::Standard),
+            game_mode: GameMode::n(game_mode).unwrap_or(GameMode::STANDARD),
             slots, in_progress: false, mods: 0,
             score_type: ScoreType::Score,
             team_type: TeamType::HeadToHead,
@@ -102,7 +102,13 @@ impl Match {
 
     pub fn name(&self) -> String { self.name.clone() }
 
-    pub fn password(&self) -> String { self.password.clone() }
+    pub fn password(&self, censored: bool) -> String {
+        if censored && !self.password.is_empty() {
+            "redacted".to_string()
+        } else {
+            self.password.clone()
+        }
+    }
 
     pub fn beatmap_name(&self) -> String { self.beatmap_name.clone() }
     
@@ -168,6 +174,7 @@ impl List<Match> {
         );
         let multi = Arc::new(multi);
         self.insert(id.to_string(), multi.clone());
+        trace!("Created new match {:?}", multi);
         multi
     }
 }

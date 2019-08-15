@@ -62,7 +62,7 @@ fn main() {
     let server = TcpListener::bind("0.0.0.0:5001").unwrap();
     let server = Arc::new(server);
     let glob = isoku::Glob::new();
-    glob.channel_list.add_channel("#osu".to_string(), "wojexe is ciota".to_string());
+    glob.channel_list.add_channel("#osu".to_string(), "wojexe is ciota".to_string(), true);
     let glob = Arc::new(glob);
     for i in 0..THREAD_COUNT {
         trace!("Spawning thread no {}", i);

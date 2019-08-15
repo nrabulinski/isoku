@@ -2,6 +2,7 @@ use std::sync::Arc;
 use super::{Glob, osu};
 use osu::token::Token;
 use crate::bytes::Cursor;
+use osu::packets::server as packets;
 
 //I would be fine without this macro but I wrote it for two main reasons:
 //1. Macros are cool and I like writing them
@@ -18,7 +19,7 @@ pub fn change_action(data: &mut Cursor, token: &Token, glob: &Glob) {
     //I might send the presence to everyone so that it gets automatically updated?
     trace!("{:?} changed their action to {:?}", token.token(), data);
 
-    glob.token_list.enqueue_all(&osu::packets::server::user_panel(token));
+    glob.token_list.enqueue_all(&packets::user_panel(token));
 }
 
 pub fn send_public_message(data: &mut Cursor<'_>, token: &Arc<Token>, glob: &Glob) {
@@ -43,7 +44,7 @@ pub fn send_public_message(data: &mut Cursor<'_>, token: &Arc<Token>, glob: &Glo
     }
     let channel_users = channel.users();
 
-    let packet = osu::packets::server::send_message(token, to, message);
+    let packet = packets::send_message(token, to, message);
 
     channel_users.iter()
         .filter(|t| t.id() != token.id())
@@ -64,7 +65,7 @@ pub fn logout(token: &str, glob: &Glob) {
         channel.upgrade().unwrap().remove_client(&user);
     }
     println!("AFTER LOGOUT:\n{:?}\n{:?}", glob.token_list.entries(), glob.channel_list.entries());
-    glob.token_list.enqueue_all(&osu::packets::server::logout(&user));
+    glob.token_list.enqueue_all(&packets::logout(&user));
 }
 
 pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
@@ -78,14 +79,14 @@ pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
         }
     };
 
-    let packet = osu::packets::server::send_message(token, to.username(), message);
+    let packet = packets::send_message(token, to.username(), message);
     to.enqueue(&packet);
 }
 
 pub fn join_lobby(token: &Token, glob: &Glob) {
     glob.match_list.entries()
         .into_iter()
-        .for_each(|m| token.enqueue(&osu::packets::server::create_match(&m)));
+        .for_each(|m| token.enqueue(&packets::create_match(&m, true)));
 }
 
 #[derive(Debug)]
@@ -102,8 +103,10 @@ fn match_data(data: &mut Cursor) -> MatchSettings {
     let (id, in_progress, _, mods, name, password, beatmap_name, beatmap_id, beatmap_md5) =
         event_data!(data; u16, u8, u8, u32, String, String, String, i32, String);
 
-    //skip not used slot status + slot team
-    data.advance(16 * 2);
+    let mut free_slots = 0;
+    for _ in 0..16 { if data.get::<u8>().unwrap() == 1 { free_slots += 1 } }
+    //skip not used slot team
+    data.advance(16);
 
     let (host_user_id, game_mode, score_type, team_type, freemod) =
         event_data!(data; i32, u8, u8, u8, u8);
@@ -114,7 +117,7 @@ fn match_data(data: &mut Cursor) -> MatchSettings {
     };
     
     trace!("Parsed match settings: {:?}", data);
-
+    trace!("Number of free slots: {}", free_slots);
     data
 }
 
@@ -125,7 +128,9 @@ pub fn create_match(data: &mut Cursor, token: &Token, glob: &Glob) {
 
     let conn = glob.db_pool.get().unwrap();
     let multi = glob.match_list.create_match(name, password, beatmap_id, beatmap_name, beatmap_md5, game_mode, token.id(), &conn);
-    trace!("Created new match {:?}", multi);
+    let channel = glob.channel_list.add_channel(format!("#multi_{}", multi.id()), "".to_string(), false);
+    
+    token.enqueue(&packets::match_join_success(&multi));
 }
 
 pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
@@ -134,7 +139,7 @@ pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
     if let Some(channel) = glob.channel_list.get(&channel_name) {
         token.join_channel(Arc::downgrade(&channel));
         if channel.add_client(token.clone()) {
-            token.enqueue(&osu::packets::server::channel_join_success(channel.name()));
+            token.enqueue(&packets::channel_join_success(channel.name()));
         } else {
             warn!("{:?} couldn't join {:?}", token.token(), channel_name);
         }
@@ -149,7 +154,7 @@ pub fn user_stats_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob)
 
     glob.token_list.entries().into_iter()
         .filter(|t| users.contains(&(t.id() as i32)) && t.id() != token.id())
-        .for_each(|t| token.enqueue(&osu::packets::server::user_stats(&t)));
+        .for_each(|t| token.enqueue(&packets::user_stats(&t)));
 }
 
 pub fn channel_part(data: &mut Cursor, token: &Arc<Token>, glob: &Glob) {
@@ -162,5 +167,5 @@ pub fn user_panel_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob)
 
     glob.token_list.entries().into_iter()
         .filter(|t| users.contains(&(t.id() as i32)))
-        .for_each(|t| token.enqueue(&osu::packets::server::user_panel(&t)));
+        .for_each(|t| token.enqueue(&packets::user_panel(&t)));
 }

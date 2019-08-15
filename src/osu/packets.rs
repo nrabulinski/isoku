@@ -87,13 +87,7 @@ pub mod server {
     fn build_packet(id: ID, data: impl AsBuf) -> Vec<u8> {
         let id = id as i16;
         let len = data.size() as i32;
-        //encode!{id, EMPTY_BYTE, len, data}
-        let mut buf = Vec::with_capacity(11 + data.size());
-        buf.put(id as i16);
-        buf.put(0_u8);
-        buf.put(len);
-        buf.put(data);
-        buf
+        encode!{id, EMPTY_BYTE, len, data}
     }
 
     pub fn logout(token: &Token) -> Vec<u8> {
@@ -132,24 +126,25 @@ pub mod server {
     }
 
     pub fn user_stats(token: &Token) -> Vec<u8> {
-        let data = {
-            let action_text = "beta-testing".to_string();
-            let action_md5 = "".to_string();
-            let mut buf = Vec::with_capacity(44 + action_text.size() + action_md5.size());
-            buf.put(token.id());
-            buf.put(0_u8);          // action id
-            buf.put(action_text);
-            buf.put(action_md5);
-            buf.put(0_i32);      // action mods
-            buf.put(0_u8);          // game mode
-            buf.put(0_i32);      // beatmap id
-            buf.put(1_u64);      // ranked score
-            buf.put(1.0_f32);  // accuracy
-            buf.put(1_u32);      // play count
-            buf.put(1_u64);      // total score
-            buf.put(1_u32);      // global rank
-            buf.put(727_u16);      // pp
-            buf
+        let stats = token.read_stats();
+        let action_id = stats.action as u8;
+        let action_text = stats.action_text.clone();
+        let action_md5 = stats.action_md5.clone();
+        let game_mode = stats.game_mode as u8;
+        let data = encode!{
+            token.id(),
+            action_id,
+            action_text,
+            action_md5,
+            stats.action_mods,
+            game_mode,
+            stats.beatmap_id,
+            stats.ranked_score,
+            stats.accuracy,
+            stats.playcount,
+            stats.total_score,
+            stats.rank,
+            stats.pp
         };
         build_packet(ID::USER_STATS, data)
     }
@@ -176,15 +171,6 @@ pub mod server {
         let data = encode!{
             user, message, to, from.id()
         };
-        // let data = {
-        //     let user = from.username();
-        //     let mut buf = Vec::with_capacity(user.size() + to.size() + message.size() + 4);
-        //     buf.put(user);
-        //     buf.put(message);
-        //     buf.put(to);
-        //     buf.put(from.id());
-        //     buf
-        // };
         build_packet(ID::SEND_MESSAGE, data)
     }
 
@@ -205,13 +191,13 @@ pub mod server {
 
     /* MULTIPLAYER */
     //TODO: multiplayer
-    pub fn create_match(m: &Match) -> Vec<u8> {
-        let data = encode!{
+    fn match_data(m: &Match, censor: bool) -> Vec<u8> {
+        encode!{
             m.id(),
             m.in_progress(), EMPTY_BYTE,
             m.mods(),
             m.name(),
-            m.password(),
+            m.password(censor),
             m.beatmap_name(),
             m.beatmap_id(),
             m.beatmap_md5(),
@@ -220,8 +206,19 @@ pub mod server {
             m.score_type(), m.team_type(),
             m.freemod(), m.slot_mods(),
             0_u32
-        };
-        build_packet(ID::NEW_MATCH, data)
+        }
+    }
+
+    pub fn create_match(m: &Match, censor: bool) -> Vec<u8> { 
+        build_packet(ID::NEW_MATCH, match_data(m, censor))
+    }
+
+    pub fn update_match(m: &Match, censor: bool) -> Vec<u8> {
+        build_packet(ID::UPDATE_MATCH, match_data(m, censor))
+    }
+
+    pub fn match_join_success(m: &Match) -> Vec<u8> {
+        build_packet(ID::MATCH_JOIN_SUCCESS, match_data(m, false))
     }
 
     /* UTILS */
@@ -311,17 +308,4 @@ pub mod client {
         } else { Cursor::new(&[]) };
         (id, data)
     }
-
-    // pub fn channel_join(buf: &[u8]) -> String {
-    //     String::decode(buf)
-    // }
-    // struct Packet {
-    //     id: ID
-    // }
-
-    // impl From<&[u8]> for Packet {
-    //     fn from(buf: &[u8]) -> Self {
-            
-    //     }
-    // }
 }
