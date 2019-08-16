@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use super::token::Token;
 use super::GameMode;
 use super::List;
@@ -7,7 +7,7 @@ type DbConn = postgres::Connection;
 
 #[derive(Debug, Copy, Clone)]
 enum Team { None, Blue, Red }
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Status {
     Free = 1,
     Locked = 1 << 1,
@@ -37,7 +37,7 @@ pub struct Slot {
 }
 
 impl Slot {
-    fn new() -> Slot {
+    fn new(free: bool) -> Slot {
         Slot {
             user: None,
             completed: false,
@@ -47,7 +47,7 @@ impl Slot {
             score: 0,
             loaded: false,
             team: Team::None,
-            status: Status::Free
+            status: if free { Status::Free } else { Status::Locked }
         }
     }
 }
@@ -55,7 +55,7 @@ impl Slot {
 #[derive(Debug)]
 pub struct Match {
     id: i32,
-    slots: Vec<Slot>,
+    slots: RwLock<Vec<Slot>>,
     in_progress: bool,
     mods: u32,
     name: String,
@@ -80,7 +80,8 @@ impl Match {
                game_mode: u8,
                host_user_id: u32) -> Match {
         let mut slots = Vec::with_capacity(16);
-        for _ in 0..16 { slots.push(Slot::new()) }
+        for _ in 0..16 { slots.push(Slot::new(true)) }
+        let slots = RwLock::new(slots);
         Match {
             id, name, password, beatmap_id, beatmap_name, beatmap_md5,
             game_mode: GameMode::n(game_mode).unwrap_or(GameMode::STANDARD),
@@ -117,22 +118,32 @@ impl Match {
     pub fn beatmap_md5(&self) -> String { self.beatmap_md5.clone() }
 
     pub fn slots(&self) -> Vec<u8> {
-        self.slots.iter()
-        .map(|slot| slot.status as u8)
-        .collect()
+        self.slots.read().unwrap()
+            .iter()
+            .map(|slot| slot.status as u8)
+            .collect()
     }
 
     pub fn teams(&self) -> Vec<u8> {
-        self.slots.iter()
+        self.slots.read().unwrap()
+            .iter()
             .map(|slot| slot.team as u8)
             .collect()
     }
 
-    pub fn users(&self) -> Vec<u32> { 
-        self.slots.iter()
+    pub fn users(&self) -> Vec<u8> {
+        use crate::bytes::AsBuf;
+        let slots: Vec<u32> = 
+            self.slots.read().unwrap()
+            .iter()
             .filter(|slot| slot.user.is_some())
             .map(|slot| slot.user.as_ref().unwrap().id())
-            .collect() 
+            .collect();
+        let mut buf: Vec<u8> = Vec::with_capacity(4 * slots.len());
+        for slot in slots {
+            slot.encode(&mut buf);
+        }
+        buf
     }
 
     pub fn host(&self) -> u32 { self.host_user_id }
@@ -147,11 +158,30 @@ impl Match {
         if self.freemod { 1 } else { 0 }
     }
 
-    pub fn slot_mods(&self) -> Vec<u32> {
+    pub fn slot_mods(&self) -> Vec<u8> {
         if !self.freemod { return Vec::new() }
-        self.slots.iter()
+        use crate::bytes::AsBuf;
+        let slots: Vec<u32> =
+            self.slots.read().unwrap()
+            .iter()
             .map(|slot| slot.mods)
-            .collect()
+            .collect();
+        let mut buf: Vec<u8> = Vec::with_capacity(4 * slots.len());
+        for slot in slots {
+            slot.encode(&mut buf);
+        }
+        buf
+    }
+
+    pub fn user_join(&self, token: Arc<Token>) -> bool {
+        match self.slots.write().unwrap().iter_mut().find(|slot| slot.status == Status::Free) {
+            Some(slot) => {
+                slot.user = Some(token);
+                slot.status = Status::NotReady;
+                true
+            },
+            None => false
+        }
     }
 }
 

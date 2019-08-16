@@ -10,7 +10,7 @@ pub mod matches;
 #[derive(Debug, Copy, Clone, enumn::N)]
 pub enum GameMode { STANDARD, TAIKO, CTB, MANIA }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct List<V> {
     list: RwLock<HashMap<String, Arc<V>>>
 }

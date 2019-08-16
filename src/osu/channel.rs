@@ -46,9 +46,11 @@ impl Channel {
         match users.iter().position(|t| Arc::ptr_eq(t, token)) {
             Some(pos) => {
                 users.remove(pos);
-                trace!("removed {:?} from {:?}", token.token(), self.name);
+                trace!("removed {:?} from {:?}", token.token(), self.name)
             },
-            None => warn!("tried to remove {:?} from {:?} before they joined it", token.token(), self.name)
+            None => {
+                warn!("tried to remove {:?} from {:?} before they joined it", token.token(), self.name)
+            }
         }
     }
 

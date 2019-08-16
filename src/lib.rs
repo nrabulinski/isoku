@@ -17,9 +17,9 @@ use osu::matches::Match;
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
 use bytes::Cursor;
-use std::sync::RwLock;
+use std::sync::{RwLock, Weak};
 
-const EASTEREGG: &'static [u8] = b"
+const EASTEREGG: &[u8] = b"
 <html>
 <head>
 <title>Uncho</title>
@@ -41,10 +41,12 @@ pub struct Glob {
     pub channel_list: List<Channel>,
     pub db_pool: r2d2::Pool<PgConnManager>,
     pub match_list: List<Match>,
-    pub menu_icon: RwLock<Option<String>>
+    pub menu_icon: RwLock<Option<String>>,
+    pub lobby: RwLock<Vec<Weak<Token>>>
 }
 
 impl Glob {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let db_url = std::env::var("DATABASE_URL").unwrap();
         let db_manager = PgConnManager::new(db_url, TlsMode::None).unwrap();
@@ -53,7 +55,8 @@ impl Glob {
             token_list: List::new(), 
             channel_list: List::new(),
             match_list: List::new(),
-            db_pool, menu_icon: RwLock::new(None)
+            db_pool, menu_icon: RwLock::new(None),
+            lobby: RwLock::new(Vec::new())
         }
     }
 }
@@ -140,6 +143,7 @@ fn handle_event(req: &Request, token: &str, glob: &Glob) -> (String, Vec<u8>) {
             ID::LOGOUT => events::logout(token, glob),
             ID::PONG => (),
             ID::SEND_PRIVATE_MESSAGE => events::send_private_message(&mut data, &user, glob),
+            ID::PART_LOBBY => events::part_lobby(&user, glob),
             ID::JOIN_LOBBY => events::join_lobby(&user, glob),
             ID::CREATE_MATCH => events::create_match(&mut data, &user, glob),
             ID::CHANNEL_JOIN => events::channel_join(&mut data, user.clone(), glob),

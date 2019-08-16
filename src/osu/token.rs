@@ -1,18 +1,19 @@
 use std::sync::{Arc, Mutex, RwLock, Weak};
 use super::List;
 use super::channel::Channel;
+use super::matches::Match;
 use super::GameMode;
 use uuid::Uuid;
 
 type DbConn = postgres::Connection;
 
-pub struct Panel {}
+// pub struct Panel {}
 
-impl Panel {
-    fn new() -> Self {
-        Panel{}
-    }
-}
+// impl Panel {
+//     fn new() -> Self {
+//         Panel{}
+//     }
+// }
 
 #[derive(Debug, Copy, Clone)]
 pub enum Action { 
@@ -68,11 +69,11 @@ impl Stats {
         }
     }
 
-    fn fetch(id: i32, mode: GameMode, db: &DbConn) -> Self {
-        Self::new()
-    }
+    // fn fetch(id: i32, mode: GameMode, db: &DbConn) -> Self {
+    //     Self::new()
+    // }
 
-    fn refresh(&mut self, id: i32, mode: GameMode, db: &DbConn) {}
+    //fn refresh(&mut self, id: i32, mode: GameMode, db: &DbConn) {}
 }
 
 #[derive(Debug)]
@@ -83,7 +84,8 @@ pub struct Token {
     username: String,
     rank: u32,
     joined_channels: RwLock<Vec<Weak<Channel>>>,
-    stats: RwLock<Stats>
+    stats: RwLock<Stats>,
+    multi: RwLock<Option<Weak<Match>>>
     //location: [f32; 2]
 }
 
@@ -121,9 +123,9 @@ impl Token {
         38
     }
 
-    pub fn leave_channel(&self, channel: Arc<Channel>) {
+    pub fn leave_channel(&self, channel: &Arc<Channel>) {
         let mut channels = self.joined_channels.write().unwrap();
-        match channels.iter().position(|ch| Arc::ptr_eq(&channel, &ch.upgrade().unwrap())) {
+        match channels.iter().position(|ch| Arc::ptr_eq(channel, &ch.upgrade().unwrap())) {
             Some(pos) => {
                 channels.remove(pos); 
                 trace!("{:?} left {:?}", self.token, channel.name());
@@ -141,13 +143,19 @@ impl Token {
         self.joined_channels.read().unwrap()
     }
 
-    pub fn refresh_stats(&self, mode: GameMode, db: &DbConn) {
-        let mut stats = self.stats.write().unwrap();
-        stats.refresh(self.id as _, mode, db);
+    pub fn refresh_stats(&self, _mode: GameMode, _db: &DbConn) {
+        //TODO
+        let mut _stats = self.stats.write().unwrap();
+        //stats.refresh(self.id as _, mode, db);
     }
 
     pub fn read_stats(&self) -> std::sync::RwLockReadGuard<Stats> {
         self.stats.read().unwrap()
+    }
+
+    pub fn joim_match(&self, multi: Weak<Match>) {
+        let mut m = self.multi.write().unwrap();
+        *m = Some(multi);
     }
 }
 
@@ -183,7 +191,8 @@ impl List<Token> {
             rank: 38, token,
             data: Mutex::new(Vec::new()),
             joined_channels: RwLock::new(Vec::new()),
-            stats: RwLock::new(Stats::new())
+            stats: RwLock::new(Stats::new()),
+            multi: RwLock::new(None)
         };
         let token = Arc::new(token);
         self.insert(token.token(), token.clone());
@@ -197,7 +206,7 @@ impl List<Token> {
                 return true;
             }
         }
-        return false;
+        false
     }
 
     pub fn enqueue_all(&self, data: &[u8]) {

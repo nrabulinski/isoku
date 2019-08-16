@@ -83,7 +83,16 @@ pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
     to.enqueue(&packet);
 }
 
-pub fn join_lobby(token: &Token, glob: &Glob) {
+pub fn part_lobby(token: &Arc<Token>, glob: &Glob) {
+    let mut lobby = glob.lobby.write().unwrap();
+    match lobby.iter().map(|t| t.upgrade().unwrap()).position(|t| Arc::ptr_eq(token, &t)) {
+        Some(pos) => { lobby.remove(pos); },
+        None => warn!("{:?} tried to leave lobby before joining it", token.token())
+    }
+}
+
+pub fn join_lobby(token: &Arc<Token>, glob: &Glob) {
+    glob.lobby.write().unwrap().push(Arc::downgrade(token));
     glob.match_list.entries()
         .into_iter()
         .for_each(|m| token.enqueue(&packets::create_match(&m, true)));
@@ -121,16 +130,38 @@ fn match_data(data: &mut Cursor) -> MatchSettings {
     data
 }
 
-pub fn create_match(data: &mut Cursor, token: &Token, glob: &Glob) {
-    let MatchSettings { name, password, beatmap_id, beatmap_name, beatmap_md5, game_mode,
-        id: _, in_progress: _, mods: _, host_user_id: _, score_type: _, team_type: _, freemod: _ } =
+pub fn create_match(data: &mut Cursor, token: &Arc<Token>, glob: &Glob) {
+    let MatchSettings { name, password, beatmap_id, beatmap_name, beatmap_md5, game_mode, .. } =
         match_data(data);
 
     let conn = glob.db_pool.get().unwrap();
     let multi = glob.match_list.create_match(name, password, beatmap_id, beatmap_name, beatmap_md5, game_mode, token.id(), &conn);
+    //TODO: Stop spectating
     let channel = glob.channel_list.add_channel(format!("#multi_{}", multi.id()), "".to_string(), false);
     
-    token.enqueue(&packets::match_join_success(&multi));
+    if multi.user_join(token.clone()) {
+        token.joim_match(Arc::downgrade(&multi));
+        token.enqueue(&packets::match_join_success(&multi));
+    } else {
+        // this technically should never happen?
+        glob.match_list.remove(&multi.id().to_string()).unwrap();
+        glob.channel_list.remove(channel.name()).unwrap();
+        token.enqueue(&packets::match_join_fail());
+        error!("{:?} couldn't join to the match they created", token.token());
+        return;
+    }
+
+    token.enqueue(&packets::update_match(&multi, false));
+    glob.lobby.read().unwrap()
+        .iter()
+        .map(|t| t.upgrade().unwrap())
+        .filter(|t| t != token)
+        .for_each(|t| t.enqueue(&packets::update_match(&multi, true)));
+
+    token.join_channel(Arc::downgrade(&channel));
+    if channel.add_client(token.clone()) {
+        token.enqueue(&packets::channel_join_success(&channel));
+    }
 }
 
 pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
@@ -139,7 +170,7 @@ pub fn channel_join(data: &mut Cursor<'_>, token: Arc<Token>, glob: &Glob) {
     if let Some(channel) = glob.channel_list.get(&channel_name) {
         token.join_channel(Arc::downgrade(&channel));
         if channel.add_client(token.clone()) {
-            token.enqueue(&packets::channel_join_success(channel.name()));
+            token.enqueue(&packets::channel_join_success(&channel));
         } else {
             warn!("{:?} couldn't join {:?}", token.token(), channel_name);
         }
@@ -158,7 +189,14 @@ pub fn user_stats_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob)
 }
 
 pub fn channel_part(data: &mut Cursor, token: &Arc<Token>, glob: &Glob) {
-    //TODO
+    let channel_name = event_data!(data; String);
+
+    if let Some(channel) = glob.channel_list.get(&channel_name) {
+        token.leave_channel(&channel);
+        channel.remove_client(token);
+    } else {
+        warn!("{:?} tried to leave inexistent channel {:?}", token.token(), channel_name);
+    }
 }
 
 pub fn user_panel_request<'a>(data: &mut Cursor<'a>, token: &Token, glob: &Glob) {

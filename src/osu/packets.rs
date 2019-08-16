@@ -2,12 +2,12 @@ pub mod server {
     use crate::bytes::{Bytes, AsBuf};
     use crate::osu::{token::Token, channel::Channel, matches::Match};
 
-    #[allow(non_camel_case_types)]
+    #[allow(non_camel_case_types, clippy::enum_variant_names)]
     enum ID {
         USER_ID = 5,
-        COMMAND_ERROR = 6,
+        //COMMAND_ERROR = 6,
         SEND_MESSAGE = 7,
-        PING = 8,
+        //PING = 8,
         HANDLE_IRC_USERNAME_CHANGE = 9,
         HANDLE_IRC_QUIT = 10,
         USER_STATS = 11,
@@ -15,7 +15,7 @@ pub mod server {
         SPECTATOR_JOINED = 13,
         SPECTATOR_LEFT = 14,
         SPECTATE_FRAMES = 15,
-        VERSION_UPDATE = 19,
+        //VERSION_UPDATE = 19,
         SPECTATOR_CANT_SPECTATE = 22,
         GET_ATTENTION = 23,
         NOTIFICATION = 24,
@@ -36,17 +36,17 @@ pub mod server {
         MATCH_PLAYER_FAILED = 57,
         MATCH_COMPLETE = 58,
         MATCH_SKIP = 61,
-        UNAUTHORISED = 62,
+        //UNAUTHORISED = 62,
         CHANNEL_JOIN_SUCCESS = 64,
         CHANNEL_INFO = 65,
         CHANNEL_KICKED = 66,
-        CHANNEL_AVAILABLE_AUTOJOIN = 67,
-        BEATMAP_INFO_REPLY = 69,
+        //CHANNEL_AVAILABLE_AUTOJOIN = 67,
+        //BEATMAP_INFO_REPLY = 69,
         SUPPORTER_GMT = 71,
         FRIENDS_LIST = 72,
         PROTOCOL_VERSION = 75,
         MAIN_MENU_ICON = 76,
-        TOP_BOTNET = 80,
+        //TOP_BOTNET = 80,
         MATCH_PLAYER_SKIPPED = 81,
         USER_PANEL = 83,
         //_I_R_C_ONLY = 84,
@@ -56,26 +56,20 @@ pub mod server {
         MATCH_CHANGE_PASSWORD = 91,
         SILENCE_END = 92,
         USER_SILENCED = 94,
-        USER_PRESENCE_SINGLE = 95,
+        //USER_PRESENCE_SINGLE = 95,
         USER_PRESENCE_BUNDLE = 96,
-        USER_PM_BLOCKED = 100,
-        TARGET_IS_SILENCED = 101,
-        VERSION_UPDATE_FORCED = 102,
-        SWITCH_SERVER = 103,
+        //USER_PM_BLOCKED = 100,
+        //TARGET_IS_SILENCED = 101,
+        //VERSION_UPDATE_FORCED = 102,
+        //SWITCH_SERVER = 103,
         ACCOUNT_RESTRICTED = 104,
         JUMPSCARE = 105,
         SWITCH_TOURNEY_SERVER = 107,
     }
 
-    // macro_rules! sum {
-    //     ( $a:expr ) => { $a };
-    //     ( $a:expr, $( $b:expr ),+ ) => { $a + sum!($( $b ),+) };
-    // }
-
     macro_rules! encode {
         ( $( $val:expr ),+ ) => { {
             let size = 0 $(+ $val.size())+;
-            //$(size += $val.size();)+
             let mut buf = Vec::with_capacity(size);
             $( buf.put($val); )+
             buf
@@ -185,8 +179,8 @@ pub mod server {
         build_packet(ID::CHANNEL_INFO_END, 0_u32)
     }
 
-    pub fn channel_join_success(name: &str) -> Vec<u8> {
-        build_packet(ID::CHANNEL_JOIN_SUCCESS, name.to_string())
+    pub fn channel_join_success(channel: &Channel) -> Vec<u8> {
+        build_packet(ID::CHANNEL_JOIN_SUCCESS, channel.client_name().to_string())
     }
 
     /* MULTIPLAYER */
@@ -219,6 +213,10 @@ pub mod server {
 
     pub fn match_join_success(m: &Match) -> Vec<u8> {
         build_packet(ID::MATCH_JOIN_SUCCESS, match_data(m, false))
+    }
+
+    pub fn match_join_fail() -> Vec<u8> {
+        build_packet(ID::MATCH_JOIN_FAIL, ())
     }
 
     /* UTILS */
