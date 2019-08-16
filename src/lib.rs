@@ -1,5 +1,3 @@
-#![feature(vec_remove_item)]
-
 //TODO: Remove all useless comments
 //TODO: Proper logging system
 
