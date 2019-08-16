@@ -37,7 +37,7 @@ impl<V> List<V> {
     }
 
     pub fn entries(&self) -> Vec<Arc<V>> {
-        self.list.read().unwrap().values().map(|t| t.clone()).collect()
+        self.list.read().unwrap().values().cloned().collect()
     }
 
     pub fn remove(&self, key: &str) -> Option<Arc<V>> {

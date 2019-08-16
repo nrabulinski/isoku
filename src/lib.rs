@@ -77,7 +77,7 @@ fn login(req: &Request, glob: &Glob) -> (String, Vec<u8>) {
 
     let conn = glob.db_pool.get().unwrap();
     let result = conn.query("SELECT id FROM users WHERE nick = $1 AND password = $2", &[&username, &password]).unwrap();
-    if result.len() == 0 {
+    if result.is_empty() {
         return failure;
     } else if result.len() > 1 {
         error!("Found more than one result for this combination: {}:{}", username, password);

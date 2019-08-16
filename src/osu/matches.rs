@@ -9,7 +9,7 @@ type DbConn = postgres::Connection;
 enum Team { None, Blue, Red }
 #[derive(Debug, Copy, Clone)]
 enum Status {
-    Free = 1 << 0,
+    Free = 1,
     Locked = 1 << 1,
     NotReady = 1 << 2,
     Ready = 1 << 3,

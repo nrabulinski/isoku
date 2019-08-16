@@ -47,7 +47,7 @@ pub fn handle(server: Arc<TcpListener>, glob: Arc<Glob>) {
         let response = response.encode();
         trace!("sending response to {}", stream.peer_addr().unwrap());
         debug!(target: "verbose-raw-data", "{}\n{:x?}\n{}", stream.peer_addr().unwrap(), response, String::from_utf8_lossy(&response));
-        stream.write(&response).unwrap();
+        stream.write_all(&response).unwrap();
         stream.flush().unwrap();
     }
 }

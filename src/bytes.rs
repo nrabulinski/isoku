@@ -76,6 +76,7 @@ impl AsBuf for Vec<u32> {
 
     fn decode(buf: &mut Cursor) -> Result<Self> {
         let len = buf.get::<u16>()? as usize;
+        #[allow(clippy::cast_ptr_alignment)]
         let data = buf.read(len * 4)?.as_ptr() as *const u32;
         unsafe {
             Ok(std::slice::from_raw_parts(data, len).to_vec())
@@ -99,6 +100,7 @@ impl AsBuf for &[i32] {
 
     fn decode(buf: &mut Cursor) -> Result<Self> {
         let len = buf.get::<u16>()? as usize;
+        #[allow(clippy::cast_ptr_alignment)]
         let data = buf.read(len * 4)?.as_ptr() as *const i32;
         unsafe {
             Ok(std::slice::from_raw_parts(data, len))
@@ -165,15 +167,13 @@ mod leb {
 
     pub fn decode(buf: &mut Cursor<'_>) -> u32 {
         let mut result = 0u32;
-        //let mut shift = 0usize;
         let mut len = 0usize;
         for byte in buf.data() {
-            result |= ((byte & !(1<<7)) as u32) << (len * 7);
+            result |= u32::from(byte & !(1<<7)) << (len * 7);
             len += 1;
             if byte & 1<<7 == 0 {
                 break
             }
-            //shift += 7;
         }
         buf.advance(len);
         result
@@ -182,7 +182,7 @@ mod leb {
 
 impl AsBuf for String {
     fn encode(self, buf: &mut Buffer) {
-        if self.len() > 0 {
+        if !self.is_empty() {
             buf.push(0xb);
             leb::encode(buf, self.len() as u32);
             buf.extend_from_slice(self.as_bytes());
@@ -207,7 +207,7 @@ impl AsBuf for String {
     fn size(&self) -> usize {
         use std::convert::TryInto;
         let mut result = self.as_bytes().len();
-        if self.len() > 0 {
+        if !self.is_empty() {
             let mut len: u32 = self.as_bytes().len().try_into().unwrap();
             while len != 0 {
                 len >>= 7;
