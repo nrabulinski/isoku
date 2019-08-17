@@ -2,7 +2,7 @@ use crate::bytes::Bytes;
 
 pub enum StatusCode {
     OK,
-    NotFound
+    NotFound,
 }
 
 pub struct Response {
@@ -14,16 +14,26 @@ pub struct Response {
 
 impl Response {
     pub fn empty() -> Self {
-        Response { headers: None, body: None, status: StatusCode::OK }
+        Response {
+            headers: None,
+            body: None,
+            status: StatusCode::OK,
+        }
     }
-    
+
     pub fn empty_nf() -> Self {
-        Response { headers: None, body: None, status: StatusCode::NotFound }
+        Response {
+            headers: None,
+            body: None,
+            status: StatusCode::NotFound,
+        }
     }
 
     pub fn from_raw(headers: Vec<u8>, body: Vec<u8>) -> Self {
         Response {
-            headers: Some(headers), body: Some(body), status: StatusCode::OK
+            headers: Some(headers),
+            body: Some(body),
+            status: StatusCode::OK,
         }
     }
 
@@ -51,9 +61,9 @@ impl Response {
     pub fn encode(self) -> Vec<u8> {
         let mut buf: Vec<u8> = match self.status {
             StatusCode::OK => b"HTTP/1.1 200 OK\r\n".to_vec(),
-            StatusCode::NotFound => b"HTTP/1.1 404 Not Found\r\n".to_vec()
+            StatusCode::NotFound => b"HTTP/1.1 404 Not Found\r\n".to_vec(),
         };
-        
+
         if let Some(mut headers) = self.headers {
             buf.append(&mut headers);
         }
@@ -78,7 +88,7 @@ impl From<&[u8]> for Response {
             headers: None,
             body: Some(buf.to_vec()),
             //log: false,
-            status: StatusCode::OK
+            status: StatusCode::OK,
         }
     }
 }

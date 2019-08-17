@@ -1,8 +1,8 @@
-use std::sync::{Arc, Mutex, RwLock, Weak};
-use super::List;
 use super::channel::Channel;
 use super::matches::Match;
 use super::GameMode;
+use super::List;
+use std::sync::{Arc, Mutex, RwLock, Weak};
 use uuid::Uuid;
 
 type DbConn = postgres::Connection;
@@ -16,7 +16,7 @@ type DbConn = postgres::Connection;
 // }
 
 #[derive(Debug, Copy, Clone)]
-pub enum Action { 
+pub enum Action {
     Idle,
     Afk,
     Playing,
@@ -31,7 +31,7 @@ pub enum Action {
     Lobby,
     Multiplaying,
     OsuDirect,
-    None
+    None,
 }
 
 //TODO: user stats
@@ -48,7 +48,7 @@ pub struct Stats {
     pub playcount: u32,
     pub total_score: u64,
     pub rank: u32,
-    pub pp: u16
+    pub pp: u16,
 }
 
 impl Stats {
@@ -65,7 +65,7 @@ impl Stats {
             playcount: 0,
             total_score: 0,
             rank: 1,
-            pp: 0
+            pp: 0,
         }
     }
 
@@ -85,8 +85,7 @@ pub struct Token {
     rank: u32,
     joined_channels: RwLock<Vec<Weak<Channel>>>,
     stats: RwLock<Stats>,
-    multi: RwLock<Option<Weak<Match>>>
-    //location: [f32; 2]
+    multi: RwLock<Option<Weak<Match>>>, //location: [f32; 2]
 }
 
 impl Token {
@@ -94,12 +93,23 @@ impl Token {
         let mut lock = self.data.lock().unwrap();
         let mut buf = Vec::with_capacity(lock.len());
         buf.append(&mut lock);
-        trace!("cleared queue - {:?} ({:?}, {:?})", self.token, self.id, self.username);
+        trace!(
+            "cleared queue - {:?} ({:?}, {:?})",
+            self.token,
+            self.id,
+            self.username
+        );
         buf
     }
 
     pub fn enqueue(&self, buf: &[u8]) {
-        trace!("enqueue data {:x?} - {:?} ({:?}, {:?})", buf, self.token, self.id, self.username);
+        trace!(
+            "enqueue data {:x?} - {:?} ({:?}, {:?})",
+            buf,
+            self.token,
+            self.id,
+            self.username
+        );
         (*self.data.lock().unwrap()).extend_from_slice(buf);
     }
 
@@ -110,7 +120,7 @@ impl Token {
     pub fn id(&self) -> u32 {
         self.id
     }
-    
+
     pub fn username(&self) -> String {
         self.username.clone()
     }
@@ -125,12 +135,19 @@ impl Token {
 
     pub fn leave_channel(&self, channel: &Arc<Channel>) {
         let mut channels = self.joined_channels.write().unwrap();
-        match channels.iter().position(|ch| Arc::ptr_eq(channel, &ch.upgrade().unwrap())) {
+        match channels
+            .iter()
+            .position(|ch| Arc::ptr_eq(channel, &ch.upgrade().unwrap()))
+        {
             Some(pos) => {
-                channels.remove(pos); 
+                channels.remove(pos);
                 trace!("{:?} left {:?}", self.token, channel.name());
-            },
-            None => warn!("{:?} tried leaving {:?} not being in it", self.token, channel.name())
+            }
+            None => warn!(
+                "{:?} tried leaving {:?} not being in it",
+                self.token,
+                channel.name()
+            ),
         }
     }
 
@@ -187,12 +204,14 @@ impl List<Token> {
     pub fn add_token(&self, id: u32, name: String) -> Arc<Token> {
         let token = Uuid::new_v4().to_string();
         let token = Token {
-            id, username: name,
-            rank: 38, token,
+            id,
+            username: name,
+            rank: 38,
+            token,
             data: Mutex::new(Vec::new()),
             joined_channels: RwLock::new(Vec::new()),
             stats: RwLock::new(Stats::new()),
-            multi: RwLock::new(None)
+            multi: RwLock::new(None),
         };
         let token = Arc::new(token);
         self.insert(token.token(), token.clone());
@@ -210,7 +229,12 @@ impl List<Token> {
     }
 
     pub fn enqueue_all(&self, data: &[u8]) {
-        self.list.read().unwrap().values().cloned().for_each(|token| token.enqueue(data));
+        self.list
+            .read()
+            .unwrap()
+            .values()
+            .cloned()
+            .for_each(|token| token.enqueue(data));
     }
 
     pub fn get_username(&self, username: &str) -> Option<Arc<Token>> {

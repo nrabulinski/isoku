@@ -1,6 +1,6 @@
 pub mod server {
-    use crate::bytes::{Bytes, AsBuf};
-    use crate::osu::{token::Token, channel::Channel, matches::Match};
+    use crate::bytes::{AsBuf, Bytes};
+    use crate::osu::{channel::Channel, matches::Match, token::Token};
 
     #[allow(non_camel_case_types, clippy::enum_variant_names)]
     enum ID {
@@ -81,11 +81,11 @@ pub mod server {
     fn build_packet(id: ID, data: impl AsBuf) -> Vec<u8> {
         let id = id as i16;
         let len = data.size() as i32;
-        encode!{id, EMPTY_BYTE, len, data}
+        encode! {id, EMPTY_BYTE, len, data}
     }
 
     pub fn logout(token: &Token) -> Vec<u8> {
-        build_packet(ID::USER_LOGOUT, encode!{token.id(), EMPTY_BYTE})
+        build_packet(ID::USER_LOGOUT, encode! {token.id(), EMPTY_BYTE})
     }
 
     /* LOGIN */
@@ -115,7 +115,8 @@ pub mod server {
         let username = token.username();
         let rank = token.rank();
         let location = token.location();
-        let data = encode!{id, username, EMPTY_BYTE, EMPTY_BYTE, rank, location[0], location[1], 1_u32};
+        let data =
+            encode! {id, username, EMPTY_BYTE, EMPTY_BYTE, rank, location[0], location[1], 1_u32};
         build_packet(ID::USER_PANEL, data)
     }
 
@@ -125,7 +126,7 @@ pub mod server {
         let action_text = stats.action_text.clone();
         let action_md5 = stats.action_md5.clone();
         let game_mode = stats.game_mode as u8;
-        let data = encode!{
+        let data = encode! {
             token.id(),
             action_id,
             action_text,
@@ -162,7 +163,7 @@ pub mod server {
     /* CHAT */
     pub fn send_message(from: &Token, to: String, message: String) -> Vec<u8> {
         let user = from.username();
-        let data = encode!{
+        let data = encode! {
             user, message, to, from.id()
         };
         build_packet(ID::SEND_MESSAGE, data)
@@ -172,7 +173,7 @@ pub mod server {
         let name = channel.name().to_string();
         let desc = channel.desc().to_string();
         let users = channel.users_len();
-        build_packet(ID::CHANNEL_INFO, encode!{name, desc, users})
+        build_packet(ID::CHANNEL_INFO, encode! {name, desc, users})
     }
 
     pub fn channel_info_end() -> Vec<u8> {
@@ -186,7 +187,7 @@ pub mod server {
     /* MULTIPLAYER */
     //TODO: multiplayer
     fn match_data(m: &Match, censor: bool) -> Vec<u8> {
-        encode!{
+        encode! {
             m.id(),
             m.in_progress(), EMPTY_BYTE,
             m.mods(),
@@ -203,7 +204,7 @@ pub mod server {
         }
     }
 
-    pub fn create_match(m: &Match, censor: bool) -> Vec<u8> { 
+    pub fn create_match(m: &Match, censor: bool) -> Vec<u8> {
         build_packet(ID::NEW_MATCH, match_data(m, censor))
     }
 
@@ -245,65 +246,73 @@ pub mod client {
         REQUEST_STATUS_UPDATE = 3, //TODO
         PONG = 4,
         START_SPECTATING = 16, //TODO
-        STOP_SPECTATING = 17, //TODO
-        SPECTATE_FRAMES = 18, //TODO
+        STOP_SPECTATING = 17,  //TODO
+        SPECTATE_FRAMES = 18,  //TODO
         //ERROR_REPORT = 20,
         CANT_SPECTATE = 21, //TODO
         SEND_PRIVATE_MESSAGE = 25,
-        PART_LOBBY = 29, //TODO
-        JOIN_LOBBY = 30, //TODO: join #lobby channel
-        CREATE_MATCH = 31, //TODO
-        JOIN_MATCH = 32, //TODO
-        PART_MATCH = 33, //TODO
-        MATCH_READY = 39, //TODO
-        MATCH_LOCK = 40, //TODO
+        PART_LOBBY = 29,
+        JOIN_LOBBY = 30, //FIXME: join #lobby channel
+        CREATE_MATCH = 31,
+        JOIN_MATCH = 32,            //TODO
+        PART_MATCH = 33,            //TODO
+        MATCH_READY = 39,           //TODO
+        MATCH_LOCK = 40,            //TODO
         MATCH_CHANGE_SETTINGS = 41, //TODO
-        MATCH_START = 44, //TODO
-        ALL_PLAYERS_LOADED = 45, //TODO
-        MATCH_SCORE_UPDATE = 47, //TODO
-        MATCH_COMPLETE = 49, //TODO
-        MATCH_CHANGE_MODS = 51, //TODO
-        MATCH_LOAD_COMPLETE = 52, //TODO
-        MATCH_NO_BEATMAP = 54, //TODO
-        MATCH_NOT_READY = 55, //TODO
-        MATCH_FAILED = 56, //TODO
-        MATCH_HAS_BEATMAP = 59, //TODO
-        MATCH_SKIP_REQUEST = 60, //TODO
+        MATCH_START = 44,           //TODO
+        ALL_PLAYERS_LOADED = 45,    //TODO
+        MATCH_SCORE_UPDATE = 47,    //TODO
+        MATCH_COMPLETE = 49,        //TODO
+        MATCH_CHANGE_MODS = 51,     //TODO
+        MATCH_LOAD_COMPLETE = 52,   //TODO
+        MATCH_NO_BEATMAP = 54,      //TODO
+        MATCH_NOT_READY = 55,       //TODO
+        MATCH_FAILED = 56,          //TODO
+        MATCH_HAS_BEATMAP = 59,     //TODO
+        MATCH_SKIP_REQUEST = 60,    //TODO
         CHANNEL_JOIN = 63,
         //BEATMAP_INFO_REQUEST = 68, unknown?
         MATCH_TRANSFER_HOST = 70, //TODO
-        FRIEND_ADD = 73, //TODO
-        FRIEND_REMOVE = 74, //TODO
-        MATCH_CHANGE_TEAM = 77, //TODO
+        FRIEND_ADD = 73,          //TODO
+        FRIEND_REMOVE = 74,       //TODO
+        MATCH_CHANGE_TEAM = 77,   //TODO
         CHANNEL_PART = 78,
-        RECEIVE_UPDATES = 79, //TODO
+        RECEIVE_UPDATES = 79,  //TODO
         SET_AWAY_MESSAGE = 82, //TODO
         //I_R_C_ONLY = 84,
         USER_STATS_REQUEST = 85,
-        INVITE = 87, //TODO
-        MATCH_CHANGE_PASSWORD = 90, //TODO
+        INVITE = 87,                     //TODO
+        MATCH_CHANGE_PASSWORD = 90,      //TODO
         SPECIAL_MATCH_INFO_REQUEST = 93, //TODO
         USER_PANEL_REQUEST = 97,
         //USER_PRESENCE_REQUEST_ALL = 98,
-        //USER_TOGGLE_BLOCK_NON_FRIEND_PM = 99, 
-        MATCH_ABORT = 106, //TODO
-        SPECIAL_JOIN_MATCH_CHANNEL = 108, //TODO
+        //USER_TOGGLE_BLOCK_NON_FRIEND_PM = 99,
+        MATCH_ABORT = 106,                 //TODO
+        SPECIAL_JOIN_MATCH_CHANNEL = 108,  //TODO
         SPECIAL_LEAVE_MATCH_CHANNEL = 109, //TODO
-        UNKNOWN = -1
+        UNKNOWN = -1,
     }
 
     pub fn parse_packet<'b>(buf: &mut Cursor<'b>) -> (ID, Cursor<'b>) {
         let id_raw: u16 = buf.get().unwrap();
-        let id = ID::n(id_raw).unwrap_or_else(|| {warn!("Unknown id: {}", id_raw); ID::UNKNOWN});
+        let id = ID::n(id_raw).unwrap_or_else(|| {
+            warn!("Unknown id: {}", id_raw);
+            ID::UNKNOWN
+        });
         buf.advance(1);
         let len: u32 = buf.get().unwrap();
         if buf.remaining() < len as usize {
-            error!("packet {} had length of {}, which was greater than the length of its data", id_raw, len);
+            error!(
+                "packet {} had length of {}, which was greater than the length of its data",
+                id_raw, len
+            );
             return (ID::UNKNOWN, Cursor::new(&[]));
         }
         let data = if len > 0 {
             Cursor::new(buf.read(len as usize).unwrap())
-        } else { Cursor::new(&[]) };
+        } else {
+            Cursor::new(&[])
+        };
         (id, data)
     }
 }

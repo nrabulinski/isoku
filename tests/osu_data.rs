@@ -1,11 +1,11 @@
 //use isoku::osu::OsuData;
-use isoku::bytes::{Bytes, AsBuf, Cursor};
-use rand::Rng;
+use isoku::bytes::{AsBuf, Bytes, Cursor};
 use rand::distributions::{Distribution, Standard};
-use std::mem::size_of;
+use rand::Rng;
+use std::clone::Clone;
 use std::cmp::PartialEq;
 use std::fmt::Debug;
-use std::clone::Clone;
+use std::mem::size_of;
 
 fn basic_test<T: AsBuf + PartialEq + Debug + Clone>(value: T) {
     let mut buf = Vec::new();
@@ -22,7 +22,7 @@ fn str_len() {
         "looooooooong string",
         "osu test",
         "osu",
-        ""
+        "",
     ];
     let mut buf = Vec::new();
     for s in strings.into_iter() {
@@ -73,9 +73,15 @@ fn i32_slice() {
 fn multiple_values() {
     type Test = (i32, u32, i16, u16, String);
     let mut buf = Vec::new();
-    let (a,b,c,d,e): Test = {
+    let (a, b, c, d, e): Test = {
         let mut rng = rand::thread_rng();
-        (rng.gen(),rng.gen(),rng.gen(),rng.gen(),"osu test".to_string())
+        (
+            rng.gen(),
+            rng.gen(),
+            rng.gen(),
+            rng.gen(),
+            "osu test".to_string(),
+        )
     };
     buf.put(a);
     buf.put(b);
@@ -83,7 +89,7 @@ fn multiple_values() {
     buf.put(d);
     buf.put(e.clone());
     let mut cursor = Cursor::new(&buf);
-    let (x,y,z,i,j): Test = (
+    let (x, y, z, i, j): Test = (
         cursor.get().unwrap(),
         cursor.get().unwrap(),
         cursor.get().unwrap(),
@@ -97,9 +103,10 @@ fn multiple_values() {
     assert_eq!(j, e);
 }
 
-
 fn rand<T>() -> T
-where Standard: Distribution<T> {
+where
+    Standard: Distribution<T>,
+{
     let mut rng = rand::thread_rng();
     rng.gen()
 }

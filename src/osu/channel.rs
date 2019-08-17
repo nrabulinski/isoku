@@ -1,19 +1,21 @@
-use std::sync::{RwLock, Arc};
 use super::token::Token;
 use super::List;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
 pub struct Channel {
     name: String,
     desc: String,
     users: RwLock<Vec<Arc<Token>>>,
-    public: bool
+    public: bool,
 }
 
 impl Channel {
     pub fn new(name: String, desc: String, public: bool) -> Self {
         Channel {
-            name, desc, public,
+            name,
+            desc,
+            public,
             users: RwLock::new(Vec::new()),
         }
     }
@@ -32,7 +34,11 @@ impl Channel {
 
     pub fn add_client(&self, token: Arc<Token>) -> bool {
         if self.has_client(&token) {
-            warn!("{:?} tried to join {:?} despite being in it", token.token(), self.name);
+            warn!(
+                "{:?} tried to join {:?} despite being in it",
+                token.token(),
+                self.name
+            );
             return false;
         }
 
@@ -40,17 +46,19 @@ impl Channel {
         trace!("{:?} new client joined", self.name);
         true
     }
-    
+
     pub fn remove_client(&self, token: &Arc<Token>) {
         let mut users = self.users.write().unwrap();
         match users.iter().position(|t| Arc::ptr_eq(t, token)) {
             Some(pos) => {
                 users.remove(pos);
                 trace!("removed {:?} from {:?}", token.token(), self.name)
-            },
-            None => {
-                warn!("tried to remove {:?} from {:?} before they joined it", token.token(), self.name)
             }
+            None => warn!(
+                "tried to remove {:?} from {:?} before they joined it",
+                token.token(),
+                self.name
+            ),
         }
     }
 
@@ -77,7 +85,9 @@ impl Channel {
         self.users.read().unwrap()
     }
 
-    pub fn public(&self) -> bool { self.public }
+    pub fn public(&self) -> bool {
+        self.public
+    }
 }
 
 impl List<Channel> {

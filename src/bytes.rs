@@ -1,6 +1,6 @@
 pub struct Cursor<'a> {
     pos: usize,
-    data: &'a [u8]
+    data: &'a [u8],
 }
 
 type Result<T> = std::result::Result<T, ()>;
@@ -36,7 +36,7 @@ impl<'a> Cursor<'a> {
 
     pub fn read(&mut self, len: usize) -> Result<&'a [u8]> {
         if self.pos >= self.data.len() {
-            return Err(())
+            return Err(());
         }
         let res = &(self.data)[self.pos..self.pos + len];
         self.pos += len;
@@ -45,6 +45,9 @@ impl<'a> Cursor<'a> {
 
     pub fn advance(&mut self, len: usize) {
         self.pos += len;
+        if self.pos >= self.data.len() {
+            warn!("advanced the cursor beyond data length");
+        }
     }
 
     pub fn get<T: AsBuf>(&mut self) -> Result<T> {
@@ -61,7 +64,9 @@ impl AsBuf for u8 {
         Ok(buf.read(1)?[0])
     }
 
-    fn size(&self) -> usize { 1 }
+    fn size(&self) -> usize {
+        1
+    }
 }
 
 impl AsBuf for Vec<u32> {
@@ -78,9 +83,7 @@ impl AsBuf for Vec<u32> {
         let len = buf.get::<u16>()? as usize;
         #[allow(clippy::cast_ptr_alignment)]
         let data = buf.read(len * 4)?.as_ptr() as *const u32;
-        unsafe {
-            Ok(std::slice::from_raw_parts(data, len).to_vec())
-        }
+        unsafe { Ok(std::slice::from_raw_parts(data, len).to_vec()) }
     }
 
     fn size(&self) -> usize {
@@ -102,9 +105,7 @@ impl AsBuf for &[i32] {
         let len = buf.get::<u16>()? as usize;
         #[allow(clippy::cast_ptr_alignment)]
         let data = buf.read(len * 4)?.as_ptr() as *const i32;
-        unsafe {
-            Ok(std::slice::from_raw_parts(data, len))
-        }
+        unsafe { Ok(std::slice::from_raw_parts(data, len)) }
     }
 
     fn size(&self) -> usize {
@@ -145,8 +146,12 @@ impl AsBuf for &[u8] {
 
 impl AsBuf for () {
     fn encode(self, _: &mut Buffer) {}
-    fn decode(_: &mut Cursor) -> Result<Self> { Ok(()) }
-    fn size(&self) -> usize { 0 }
+    fn decode(_: &mut Cursor) -> Result<Self> {
+        Ok(())
+    }
+    fn size(&self) -> usize {
+        0
+    }
 }
 
 mod leb {
@@ -155,10 +160,10 @@ mod leb {
     pub fn encode(buf: &mut Vec<u8>, value: u32) {
         let mut value = value;
         while {
-            let mut byte = (value & !(1<<7)) as u8;
+            let mut byte = (value & !(1 << 7)) as u8;
             value >>= 7;
             if value != 0 {
-                byte |= 1<<7;
+                byte |= 1 << 7;
             }
             buf.put(byte);
             value != 0
@@ -169,10 +174,10 @@ mod leb {
         let mut result = 0u32;
         let mut len = 0usize;
         for byte in buf.data() {
-            result |= u32::from(byte & !(1<<7)) << (len * 7);
+            result |= u32::from(byte & !(1 << 7)) << (len * 7);
             len += 1;
-            if byte & 1<<7 == 0 {
-                break
+            if byte & 1 << 7 == 0 {
+                break;
             }
         }
         buf.advance(len);
@@ -186,7 +191,9 @@ impl AsBuf for String {
             buf.push(0xb);
             leb::encode(buf, self.len() as u32);
             buf.extend_from_slice(self.as_bytes());
-        } else { buf.push(0) }
+        } else {
+            buf.push(0)
+        }
     }
 
     fn decode(buf: &mut Cursor) -> Result<Self> {
@@ -196,7 +203,7 @@ impl AsBuf for String {
             0xb => {
                 let len = leb::decode(buf) as usize;
                 Ok(String::from_utf8_lossy(buf.read(len)?).to_string())
-            },
+            }
             _ => {
                 warn!("unknown string prefix {}; {:x?}", prefix, buf.data());
                 Err(())
@@ -268,7 +275,7 @@ mod tests {
         use rand::Rng;
 
         let mut buf = Vec::new();
-        let value: u32 = { 
+        let value: u32 = {
             let mut rng = rand::thread_rng();
             rng.gen()
         };

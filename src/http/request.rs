@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 pub enum Method<'a> {
     GET,
     POST,
-    OTHER(&'a str)
+    OTHER(&'a str),
 }
 
 pub struct Request<'a> {
@@ -12,18 +12,27 @@ pub struct Request<'a> {
     body: &'a [u8],
     headers: HashMap<String, &'a str>,
     path: &'a str,
-    addr: SocketAddr
+    addr: SocketAddr,
 }
 
 impl<'a> Request<'a> {
-    pub fn new(method: &'a str, body: &'a [u8], headers: HashMap<String, &'a str>, path: &'a str, addr: SocketAddr) -> Self {
+    pub fn new(
+        method: &'a str,
+        body: &'a [u8],
+        headers: HashMap<String, &'a str>,
+        path: &'a str,
+        addr: SocketAddr,
+    ) -> Self {
         Request {
             method: match method {
                 "GET" => Method::GET,
                 "POST" => Method::POST,
-                _ => Method::OTHER(method)
+                _ => Method::OTHER(method),
             },
-            body, headers, path, addr
+            body,
+            headers,
+            path,
+            addr,
         }
     }
 
@@ -32,9 +41,7 @@ impl<'a> Request<'a> {
     }
 
     pub fn body_string(&self) -> &str {
-        unsafe {
-            std::str::from_utf8_unchecked(self.body)
-        }
+        unsafe { std::str::from_utf8_unchecked(self.body) }
     }
 
     pub fn method(&self) -> &Method {
