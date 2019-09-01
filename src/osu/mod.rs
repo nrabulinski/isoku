@@ -1,4 +1,7 @@
+use std::borrow::Borrow;
+use std::cmp::Eq;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::sync::{Arc, RwLock};
 
 pub mod channel;
@@ -16,18 +19,28 @@ pub enum GameMode {
 }
 
 #[derive(Debug, Default)]
-pub struct List<V> {
-    list: RwLock<HashMap<String, Arc<V>>>,
+pub struct List<K, V>
+where
+    K: Hash + Eq,
+{
+    list: RwLock<HashMap<K, Arc<V>>>,
 }
 
-impl<V> List<V> {
+impl<K, V> List<K, V>
+where
+    K: Hash + Eq,
+{
     pub fn new() -> Self {
         List {
             list: RwLock::new(HashMap::new()),
         }
     }
 
-    pub fn get(&self, key: &str) -> Option<Arc<V>> {
+    pub fn get<T>(&self, key: &T) -> Option<Arc<V>>
+    where
+        K: Borrow<T>,
+        T: Hash + Eq + ?Sized,
+    {
         match self.list.read().unwrap().get(key) {
             Some(val) => Some((*val).clone()),
             None => None,
@@ -45,11 +58,15 @@ impl<V> List<V> {
         self.list.read().unwrap().values().cloned().collect()
     }
 
-    pub fn remove(&self, key: &str) -> Option<Arc<V>> {
+    pub fn remove<T>(&self, key: &T) -> Option<Arc<V>>
+    where
+        K: Borrow<T>,
+        T: Hash + Eq + ?Sized,
+    {
         self.list.write().unwrap().remove(key)
     }
 
-    fn insert(&self, key: String, val: Arc<V>) {
+    fn insert(&self, key: K, val: Arc<V>) {
         self.list.write().unwrap().insert(key, val);
     }
 }

@@ -200,7 +200,9 @@ impl std::cmp::PartialEq<Arc<Token>> for Token {
     }
 }
 
-impl List<Token> {
+pub type TokenList = List<String, Token>;
+
+impl TokenList {
     pub fn add_token(&self, id: u32, name: String) -> Arc<Token> {
         let token = Uuid::new_v4().to_string();
         let token = Token {

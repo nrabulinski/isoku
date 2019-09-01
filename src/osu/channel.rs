@@ -90,7 +90,9 @@ impl Channel {
     }
 }
 
-impl List<Channel> {
+pub type ChannelList = List<String, Channel>;
+
+impl ChannelList {
     pub fn add_channel(&self, name: String, desc: String, public: bool) -> Arc<Channel> {
         let channel = Arc::new(Channel::new(name.clone(), desc, public));
         self.list.write().unwrap().insert(name, channel.clone());

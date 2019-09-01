@@ -9,13 +9,13 @@ mod events;
 pub mod http;
 pub mod osu;
 use bytes::Cursor;
-use osu::channel::Channel;
-use osu::matches::Match;
-use osu::token::Token;
+use osu::channel::ChannelList;
+use osu::matches::MatchList;
+use osu::token::{Token, TokenList};
 use osu::{packets, GameMode, List};
 use r2d2_postgres::PostgresConnectionManager as PgConnManager;
 use r2d2_postgres::TlsMode;
-use std::sync::{RwLock, Weak};
+use std::sync::{Arc, RwLock};
 
 const EASTEREGG: &[u8] = b"
 <html>
@@ -35,12 +35,12 @@ world's first osu private server written in Rust
 </html>";
 
 pub struct Glob {
-    pub token_list: List<Token>,
-    pub channel_list: List<Channel>,
+    pub token_list: TokenList,
+    pub channel_list: ChannelList,
     pub db_pool: r2d2::Pool<PgConnManager>,
-    pub match_list: List<Match>,
+    pub match_list: MatchList,
     pub menu_icon: RwLock<Option<String>>,
-    pub lobby: RwLock<Vec<Weak<Token>>>,
+    pub lobby: RwLock<Vec<Arc<Token>>>,
 }
 
 impl Glob {

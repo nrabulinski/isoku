@@ -97,11 +97,7 @@ pub fn send_private_message(data: &mut Cursor<'_>, token: &Token, glob: &Glob) {
 
 pub fn part_lobby(token: &Arc<Token>, glob: &Glob) {
     let mut lobby = glob.lobby.write().unwrap();
-    match lobby
-        .iter()
-        .map(|t| t.upgrade().unwrap())
-        .position(|t| Arc::ptr_eq(token, &t))
-    {
+    match lobby.iter().position(|t| Arc::ptr_eq(token, &t)) {
         Some(pos) => {
             lobby.remove(pos);
         }
@@ -110,7 +106,7 @@ pub fn part_lobby(token: &Arc<Token>, glob: &Glob) {
 }
 
 pub fn join_lobby(token: &Arc<Token>, glob: &Glob) {
-    glob.lobby.write().unwrap().push(Arc::downgrade(token));
+    glob.lobby.write().unwrap().push(token.clone());
     glob.match_list
         .entries()
         .into_iter()
@@ -203,7 +199,7 @@ pub fn create_match(data: &mut Cursor, token: &Arc<Token>, glob: &Glob) {
         token.enqueue(&packets::match_join_success(&multi));
     } else {
         // this technically should never happen?
-        glob.match_list.remove(&multi.id().to_string()).unwrap();
+        glob.match_list.remove(&multi.id()).unwrap();
         glob.channel_list.remove(channel.name()).unwrap();
         token.enqueue(&packets::match_join_fail());
         error!(
@@ -213,17 +209,16 @@ pub fn create_match(data: &mut Cursor, token: &Arc<Token>, glob: &Glob) {
         return;
     }
 
-    token.enqueue(&packets::update_match(&multi, false));
+    //token.enqueue(&packets::update_match(&multi, false));
     glob.lobby
         .read()
         .unwrap()
         .iter()
-        .map(|t| t.upgrade().unwrap())
-        .filter(|t| t != token)
+        //.filter(|&t| t != token)
         .for_each(|t| t.enqueue(&packets::update_match(&multi, true)));
 
-    token.join_channel(Arc::downgrade(&channel));
     if channel.add_client(token.clone()) {
+        token.join_channel(Arc::downgrade(&channel));
         token.enqueue(&packets::channel_join_success(&channel));
     }
 }
@@ -232,8 +227,8 @@ pub fn channel_join(data: &mut Cursor<'_>, token: &Arc<Token>, glob: &Glob) {
     let channel_name = event_data!(data; String);
 
     if let Some(channel) = glob.channel_list.get(&channel_name) {
-        token.join_channel(Arc::downgrade(&channel));
         if channel.add_client(token.clone()) {
+            token.join_channel(Arc::downgrade(&channel));
             token.enqueue(&packets::channel_join_success(&channel));
         } else {
             warn!("{:?} couldn't join {:?}", token.token(), channel_name);

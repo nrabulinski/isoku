@@ -254,7 +254,9 @@ impl Match {
     }
 }
 
-impl List<Match> {
+pub type MatchList = List<i32, Match>;
+
+impl MatchList {
     pub fn create_match(
         &self,
         name: String,
@@ -284,7 +286,7 @@ impl List<Match> {
             host_user_id,
         );
         let multi = Arc::new(multi);
-        self.insert(id.to_string(), multi.clone());
+        self.insert(id, multi.clone());
         trace!("Created new match {:?}", multi);
         multi
     }
