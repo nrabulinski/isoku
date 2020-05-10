@@ -1,0 +1,32 @@
+language: rust
+
+cache:
+  directories:
+      - /home/travis/.cargo
+
+before_cache:
+  - rm -rf /home/travis/.cargo/registry
+
+rust:
+  - nightly
+
+services:
+  - postgresql
+
+before_script:
+  - psql -c 'create database travis_ci_test;' -U postgres
+  - rustup component add clippy
+  - rustup component add rustfmt
+  - cargo install cargo-tarpaulin
+
+env:
+  - DATABASE_URL=postgres://postgres@localhost/travis_ci_test
+
+script:
+    - cargo clippy
+    - cargo fmt --all -- --check
+    - cargo test
+
+after_success: |
+  cargo tarpaulin --out Xml &&
+  bash <(curl -s https://codecov.io/bash)
