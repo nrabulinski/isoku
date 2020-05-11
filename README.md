@@ -1,4 +1,7 @@
 <p align="center">
+    <img src="media/isoku.png"/>
+</p>
+<p align="center">
     <a href="https://travis-ci.org/github/nrabulinski/isoku">
         <img src="https://img.shields.io/travis/nrabulinski/isoku/async-rewrite?logo=travis&style=for-the-badge"/>
     </a>

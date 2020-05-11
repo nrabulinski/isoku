@@ -13,7 +13,7 @@ macro_rules! encode_impl {
 
             fn encode(&self, buf: &mut Vec<u8>) {
                 let s = unsafe {
-                    std::slice::from_raw_parts(self as *const $t as *const u8, std::mem::size_of::<$t>())
+                    std::slice::from_raw_parts(self as *const $t as *const u8, std::mem::size_of_val(self))
                 };
                 buf.extend_from_slice(s);
             }
