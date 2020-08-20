@@ -64,7 +64,7 @@ enum_try_from!(
 pub struct Slot {
     pub status: AtomicU8, //SlotStatus,
     pub team: AtomicU8,   //Team,
-    pub token: RwLock<Option<Arc<Token>>>,
+    pub token: RwLock<Option<Arc<dyn Token>>>,
     pub skip: AtomicBool,
     pub mods: AtomicU32,
 }
@@ -107,7 +107,7 @@ impl Match {
         beatmap_name: &str,
         beatmap_id: u32,
         beatmap_md5: &str,
-        owner: &Arc<Token>,
+        owner: &Arc<dyn Token>,
     ) -> Arc<Self> {
         let slots = [
             Slot {
@@ -145,7 +145,7 @@ impl Match {
             beatmap_id: AtomicU32::new(beatmap_id),
             beatmap_name: RwLock::new(beatmap_name.to_string()),
             beatmap_md5: RwLock::new(beatmap_md5.to_string()),
-            host_id: RwLock::new(owner.id),
+            host_id: RwLock::new(owner.id()),
             game_mode: AtomicU8::new(0),
             scoring_type: AtomicU8::new(ScoringType::Score as u8),
             team_type: AtomicU8::new(TeamType::HeadToHead as u8),
@@ -175,7 +175,7 @@ impl Match {
         for slot in self.slots.iter() {
             let token = slot.token.read().await.clone();
             if let Some(t) = token {
-                t.id.encode(&mut res);
+                t.id().encode(&mut res);
             }
         }
         res

@@ -1,4 +1,4 @@
-use super::Token;
+use crate::token::Token;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 pub struct Channel {
     pub name: String,
     pub desc: String,
-    pub users: RwLock<Vec<Arc<Token>>>,
+    pub users: RwLock<Vec<Arc<dyn Token>>>,
     pub public: bool,
 }
 
@@ -38,7 +38,7 @@ impl Channel {
         }
     }
 
-    pub async fn has_user(&self, token: &Arc<Token>) -> bool {
+    pub async fn has_user(&self, token: &Arc<dyn Token>) -> bool {
         for c in self.users.read().await.iter() {
             if Arc::ptr_eq(c, token) {
                 return true;
@@ -47,7 +47,7 @@ impl Channel {
         false
     }
 
-    pub async fn user_join(&self, token: Arc<Token>) -> bool {
+    pub async fn user_join(&self, token: Arc<dyn Token>) -> bool {
         if self.has_user(&token).await {
             return false;
         }
@@ -56,7 +56,7 @@ impl Channel {
         true
     }
 
-    pub async fn user_part(&self, token: &Arc<Token>) -> bool {
+    pub async fn user_part(&self, token: &Arc<dyn Token>) -> bool {
         let mut users = self.users.write().await;
         if let Some(pos) = users.iter().position(|t| Arc::ptr_eq(t, token)) {
             users.remove(pos);

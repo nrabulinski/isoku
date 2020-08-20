@@ -8,7 +8,7 @@ struct Message {
     to: &str,
 }
 
-async fn common<'a>(data: &'a [u8], token: &Token, glob: &Glob) -> Result<Message<'a>, String> {
+async fn common<'a>(data: &'a [u8], token: &dyn Token, glob: &Glob) -> Result<Message<'a>, String> {
     let msg = Message::decode(data).map_err(|_| "Couldn't decode message".to_string())?;
     if msg.content.starts_with('!') && msg.content.len() > 1 {
         handle_command(&msg.content[1..], token, glob).await?;
@@ -16,18 +16,19 @@ async fn common<'a>(data: &'a [u8], token: &Token, glob: &Glob) -> Result<Messag
     Ok(msg)
 }
 
-pub async fn public(data: &[u8], token: &Arc<Token>, glob: &Glob) -> Result<(), String> {
-    let msg = common(data, token, glob).await?;
-    let channel_name = if msg.to == "#multiplayer" {
-        let multi = token.multi.lock().await;
-        let multi = multi
-            .as_ref()
-            .ok_or_else(|| "You aren't in a multiplayer match")?
-            .upgrade()
-            .ok_or_else(|| "Multiplayer match has already ended")?;
-        format!("#multi_{}", multi.id)
-    } else {
-        msg.to.to_string()
+pub async fn public(data: &[u8], token: &Arc<dyn Token>, glob: &Glob) -> Result<(), String> {
+    let msg = common(data, token.as_ref(), glob).await?;
+    let channel_name = match token.as_player() {
+        Some(t) if msg.to == "#multiplayer" => {
+            let multi = t.multi.lock().await;
+            let multi = multi
+                .as_ref()
+                .ok_or_else(|| "You aren't in a multiplayer match".to_string())?
+                .upgrade()
+                .ok_or_else(|| "Multiplayer match has already ended")?;
+            format!("#multi_{}", multi.id)
+        }
+        _ => msg.to.to_string(),
     };
     let channel = glob
         .channel_list
@@ -42,30 +43,28 @@ pub async fn public(data: &[u8], token: &Arc<Token>, glob: &Glob) -> Result<(), 
             channel.name
         ));
     }
-    let packet = send_message(token, msg.to, msg.content);
+    let packet = send_message(token.as_ref(), channel.name(), msg.content);
     for c in channel
         .users
         .read()
         .await
         .iter()
-        .filter(|t| t.id != token.id)
+        .filter(|t| t.id() != token.id())
     {
-        c.queue.lock().await.extend_from_slice(&packet);
+        c.enqueue(&packet).await;
     }
     Ok(())
 }
 
-pub async fn private(data: &[u8], token: &Arc<Token>, glob: &Glob) -> Result<(), String> {
-    let msg = common(data, token, glob).await?;
+pub async fn private(data: &[u8], token: &Arc<dyn Token>, glob: &Glob) -> Result<(), String> {
+    let msg = common(data, token.as_ref(), glob).await?;
     glob.token_list
         .read()
         .await
         .values()
-        .find(|t| t.username == msg.to)
+        .find(|t| t.username() == msg.to)
         .ok_or_else(|| format!("{} is not active!", msg.to))?
-        .queue
-        .lock()
-        .await
-        .append(&mut send_message(token, msg.to, msg.content));
+        .enqueue_vec(send_message(token.as_ref(), msg.to, msg.content))
+        .await;
     Ok(())
 }

@@ -1,4 +1,5 @@
 #![feature(async_closure, const_generics)]
+#![deny(bare_trait_objects)]
 use futures::{future::join_all, stream::TryStreamExt};
 use hyper::{Body, Request, Response};
 use sqlx::{postgres::PgPool, prelude::*};
@@ -12,7 +13,7 @@ pub use isoku_macros::event_data;
 pub mod packets;
 use packets::server as p;
 pub mod token;
-pub use token::Token;
+pub use token::{dummy::DummyToken, player::PlayerToken};
 pub mod channel;
 pub use channel::Channel;
 pub mod bot;
@@ -20,16 +21,18 @@ pub mod events;
 pub mod r#match;
 pub use r#match::Match;
 
+use token::Token;
+
 const PROTOCOL_VERSION: u32 = 19;
 
 #[derive(Debug)]
 pub struct Glob {
     pub db_pool: PgPool,
-    pub token_list: RwLock<HashMap<String, Arc<Token>>>,
+    pub token_list: RwLock<HashMap<String, Arc<dyn Token>>>,
     pub channel_list: RwLock<HashMap<String, Arc<Channel>>>,
     pub match_list: RwLock<HashMap<u16, Arc<Match>>>,
-    pub lobby: RwLock<Vec<Arc<Token>>>,
-    pub bot: Arc<Token>,
+    pub lobby: RwLock<Vec<Arc<dyn Token>>>,
+    pub bot: Arc<dyn Token>,
 }
 
 impl Glob {
@@ -40,7 +43,7 @@ impl Glob {
         Channel::new(&mut channel_list, "#osu", "wojexe to ciota", true);
         Channel::new(&mut channel_list, "#lobby", "multi", true);
         let mut token_list = HashMap::with_capacity(2);
-        let bot = Token::new(&mut token_list, 3, "kenshichi".to_string());
+        let bot = DummyToken::new(&mut token_list, 3, "kenshichi".to_string());
         for ch in channel_list.values() {
             ch.user_join(bot.clone()).await;
         }
@@ -82,19 +85,26 @@ async fn login(body: &[u8], glob: Arc<Glob>) -> Result<(String, Vec<u8>), &'stat
         Some((id,)) => id,
         None => return Err("User doesn't exist"),
     };
-    if glob.token_list.read().await.values().any(|t| t.id == id) {
+    if glob.token_list.read().await.values().any(|t| t.id() == id) {
         return Err("Already logged in?");
     }
     let token = {
-        let mut list = glob.token_list.write().await;
-        Token::new(&mut list, id, username.to_string())
+        // let mut list = glob.token_list.write().await;
+        // Token::new(&mut list, id, username.to_string())
+        PlayerToken::new_with_timeout(
+            glob.clone(),
+            id,
+            username.to_string(),
+            std::time::Duration::from_secs(60 * 5),
+        )
+        .await
     };
     let online: Vec<i32> = glob
         .token_list
         .read()
         .await
         .values()
-        .map(|t| t.id)
+        .map(|t| t.id())
         .collect();
     let channels = join_all(
         glob.channel_list
@@ -110,16 +120,16 @@ async fn login(body: &[u8], glob: Arc<Glob>) -> Result<(String, Vec<u8>), &'stat
         .read()
         .await
         .values()
-        .flat_map(|t| p::user_panel(t))
+        .flat_map(|t| p::user_panel(t.as_ref()))
         .collect();
-    let user_stats = p::user_stats(&token).await;
+    let user_stats = p::user_stats(token.as_ref()).await;
     let data = [
         p::silence_end(0),
         p::protocol_ver(PROTOCOL_VERSION),
-        p::user_id(token.id),
+        p::user_id(token.id()),
         p::user_rank(0),
         p::friend_list(&[]),
-        p::user_panel(&token),
+        p::user_panel(token.as_ref()),
         user_stats,
         p::online_users(&online),
         token_list,
@@ -127,7 +137,7 @@ async fn login(body: &[u8], glob: Arc<Glob>) -> Result<(String, Vec<u8>), &'stat
         channels.into_iter().flatten().collect(),
     ]
     .concat();
-    Ok((token.token.clone(), data))
+    Ok((token.token().to_owned(), data))
 }
 
 #[instrument(skip(glob, token))]
@@ -147,67 +157,55 @@ async fn handle_packet(
         let (id, len) = packets::parse_packet(body).map_err(|_| "Couldn't parse packet")?;
         let (data, rest) = (&body[7..]).split_at(len);
         body = rest;
-        let packet = match id {
+        let packet: Result<(), String> = match id {
             Id::Unknown => {
                 println!("UNKNOWN ID!");
                 continue;
             }
-            Id::SendPublicMessage => {
-                if let Err(e) = events::send_message::public(data, &token, &glob).await {
-                    Err(e)
-                } else {
-                    continue;
+            Id::SendPublicMessage => events::send_message::public(data, &token, &glob).await,
+            Id::SendPrivateMessage => events::send_message::private(data, &token, &glob).await,
+            Id::Pong => {
+                if let Some(player) = token.as_player() {
+                    if let Some(m) = player.sender.as_ref() {
+                        let mut m = m.lock().await;
+                        if let Err(_) = m.send("ping").await {
+                            error!("Couldn't send ping");
+                            events::logout::handle(token.token(), &glob)
+                                .await
+                                .map_err(|e| {
+                                    error!(e);
+                                })
+                                .ok();
+                        }
+                    }
                 }
+                continue;
             }
-            Id::SendPrivateMessage => {
-                if let Err(e) = events::send_message::private(data, &token, &glob).await {
-                    Err(e)
-                } else {
-                    continue;
-                }
+            Id::UserStatsRequest => {
+                events::stats_request::handle(data, token.as_ref(), &glob).await
             }
-            Id::Pong => continue,
-            Id::UserStatsRequest => events::stats_request::handle(data, &glob).await,
-            Id::RequestStatusUpdate => events::status_update::handle(&token).await,
+            Id::RequestStatusUpdate => events::status_update::handle(token.as_ref()).await,
             Id::CreateMatch => events::matches::create(data, &token, &glob).await,
             Id::MatchChangeSettings => {
-                if let Err(e) = events::matches::change_settings(data, &token, &glob).await {
-                    Err(e)
-                } else {
-                    continue;
-                }
+                events::matches::change_settings(data, token.as_ref(), &glob).await
             }
             Id::JoinLobby => events::lobby_join::handle(&token, &glob).await,
-            Id::PartLobby => {
-                if let Err(e) = events::lobby_part::handle(&token, &glob).await {
-                    Err(e)
-                } else {
-                    continue;
-                }
-            }
+            Id::PartLobby => events::lobby_part::handle(&token, &glob).await,
             Id::ChannelJoin => events::channel_join::handle(data, &token, &glob).await,
             Id::ChannelPart => events::channel_part::handle(data, &token, &glob).await,
-            Id::ChangeAction => {
-                if let Err(e) = events::change_action::handle(data, &token, &glob).await {
-                    Err(e)
-                } else {
-                    continue;
-                }
-            }
+            Id::ChangeAction => events::change_action::handle(data, token.as_ref(), &glob).await,
             Id::Logout => {
-                events::logout::handle(&token.token, &glob).await?;
+                events::logout::handle(token.token(), &glob).await?;
                 break;
             }
             _ => Err(format!("Unhandled packet {:?}", id)),
         };
-        match packet {
-            Ok(mut d) => res.append(&mut d),
-            Err(msg) => res.append(&mut p::notification(&msg)),
+        if let Err(msg) = packet {
+            res.append(&mut p::notification(&msg));
         }
     }
-    let mut queue = token.queue.lock().await;
-    res.append(&mut queue);
-    Ok((token.token.clone(), res))
+    res.append(&mut token.clear_queue().await);
+    Ok((token.token().to_owned(), res))
 }
 
 pub async fn main_handler(req: Request<Body>, glob: Arc<Glob>) -> http::Result<Response<Body>> {

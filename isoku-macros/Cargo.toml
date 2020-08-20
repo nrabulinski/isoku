@@ -1,5 +1,5 @@
 [package]
-name = "isoku_macros"
+name = "isoku-macros"
 version = "0.1.0"
 authors = ["Nikodem Rabuliński <nikodemrabulinski@gmail.com>"]
 edition = "2018"

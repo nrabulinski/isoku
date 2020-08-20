@@ -1,7 +1,7 @@
 use crate::{packets::server::create_match, Glob, Token};
 use std::sync::Arc;
 
-pub async fn handle(token: &Arc<Token>, glob: &Glob) -> Result<Vec<u8>, String> {
+pub async fn handle(token: &Arc<dyn Token>, glob: &Glob) -> Result<(), String> {
     if glob
         .lobby
         .read()
@@ -14,9 +14,8 @@ pub async fn handle(token: &Arc<Token>, glob: &Glob) -> Result<Vec<u8>, String> 
 
     glob.lobby.write().await.push(token.clone());
 
-    let mut res = Vec::new();
     for m in glob.match_list.read().await.values() {
-        res.append(&mut create_match(m).await)
+        token.enqueue_vec(create_match(m).await).await;
     }
-    Ok(res)
+    Ok(())
 }

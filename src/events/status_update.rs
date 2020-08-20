@@ -1,6 +1,7 @@
 use crate::{packets::server::user_stats, Token};
 
-pub async fn handle(token: &Token) -> Result<Vec<u8>, String> {
+pub async fn handle(token: &dyn Token) -> Result<(), String> {
     // TODO: Actually update the stats, lol
-    Ok(user_stats(token).await)
+    token.enqueue_vec(user_stats(token).await).await;
+    Ok(())
 }

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use super::{Id, OsuEncode};
-use crate::{Channel, Match, Token};
+use crate::{token::Token, Channel, Match};
 use std::sync::atomic::Ordering;
 
 macro_rules! guess_size {
@@ -53,24 +53,24 @@ pub fn user_id(id: i32) -> Vec<u8> { build_packet!(Id::UserId => id) }
 pub fn user_rank(_rank: u32) -> Vec<u8> { build_packet!(Id::SupporterGmt => 38u32) }
 
 #[inline]
-pub fn logout(token: &Token) -> Vec<u8> { build_packet!(Id::UserLogout => token.id, 0u8) }
+pub fn logout(token: &dyn Token) -> Vec<u8> { build_packet!(Id::UserLogout => token.id(), 0u8) }
 
 // ---USER INFO---
 #[inline]
-pub fn user_panel(token: &Token) -> Vec<u8> {
+pub fn user_panel(token: &dyn Token) -> Vec<u8> {
     build_packet!(Id::UserPanel =>
-        token.id, &token.username, 0i16, 16u8, 0f32, 0f32, 1u32)
+        token.id(), token.username(), 0i16, 16u8, 0f32, 0f32, 1u32)
 }
 
 #[inline]
-pub async fn user_stats(token: &Token) -> Vec<u8> {
-    let stats = token.stats.read().await;
+pub async fn user_stats(token: &dyn Token) -> Vec<u8> {
+    let stats = token.stats().await;
     let action_id = stats.action as u8;
     let action_text = &stats.action_text;
     let action_md5 = &stats.action_md5;
     let game_mode = stats.game_mode as u8;
     build_packet!(Id::UserStats =>
-        token.id,
+        token.id(),
         action_id,
         action_text,
         action_md5,
@@ -112,8 +112,8 @@ pub fn channel_kicked(channel: &Channel) -> Vec<u8> {
 }
 
 #[inline]
-pub fn send_message(from: &Token, to: &str, content: &str) -> Vec<u8> {
-    build_packet!(Id::SendMessage => &from.username, content, to, from.id)
+pub fn send_message(from: &dyn Token, to: &str, content: &str) -> Vec<u8> {
+    build_packet!(Id::SendMessage => from.username(), content, to, from.id())
 }
 
 // ---MULTI---
@@ -161,6 +161,9 @@ pub fn match_join_fail() -> Vec<u8> { build_packet!(Id::MatchJoinFail) }
 
 #[inline]
 pub fn match_transfer_host() -> Vec<u8> { build_packet!(Id::ServerMatchTransferHost) }
+
+#[inline]
+pub async fn update_match(m: &Match) -> Vec<u8> { match_info(Id::UpdateMatch, m).await }
 
 // ---UTILS---
 #[inline]

@@ -3,11 +3,13 @@ use crate::{
     packets::server::{
         channel_join_success, create_match, match_join_success, match_transfer_host,
     },
-    Channel, Glob, Match, Token,
+    token::Token,
+    Channel, Glob, Match,
 };
 use std::sync::Arc;
 
-pub async fn handle(data: &[u8], token: &Arc<Token>, glob: &Glob) -> Result<Vec<u8>, String> {
+pub async fn handle(data: &[u8], token: &Arc<dyn Token>, glob: &Glob) -> Result<(), String> {
+    let player = token.as_player().ok_or("You're a bot")?;
     let data =
         MatchSettings::decode(data).map_err(|_| "Couldn't parse match settings".to_string())?;
 
@@ -25,16 +27,15 @@ pub async fn handle(data: &[u8], token: &Arc<Token>, glob: &Glob) -> Result<Vec<
         )
         .await
     };
-    *(token.multi.lock().await) = Some(Arc::downgrade(&m));
-    let mut res = Vec::new();
-    res.append(&mut match_join_success(&m).await);
-    res.append(&mut match_transfer_host());
+    *(player.multi.lock().await) = Some(Arc::downgrade(&m));
+    token.enqueue_vec(match_join_success(&m).await).await;
+    token.enqueue_vec(match_transfer_host()).await;
     let packet = create_match(&m).await;
     for u in glob.lobby.read().await.iter() {
-        if u.id == token.id {
+        if u.id() == token.id() {
             continue;
         }
-        u.queue.lock().await.extend_from_slice(&packet);
+        u.enqueue(&packet).await;
     }
     let ch = {
         let mut list = glob.channel_list.write().await;
@@ -42,8 +43,8 @@ pub async fn handle(data: &[u8], token: &Arc<Token>, glob: &Glob) -> Result<Vec<
     };
     if ch.user_join(token.clone()).await {
         token.join_channel(Arc::downgrade(&ch)).await;
-        res.append(&mut channel_join_success(&ch));
+        token.enqueue_vec(channel_join_success(&ch)).await;
     }
     println!("MATCH CREATED: {:?}", m);
-    Ok(res)
+    Ok(())
 }

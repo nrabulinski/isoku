@@ -7,8 +7,47 @@ use syn::{
     parse::{Parse, ParseStream, Result},
     parse_macro_input,
     punctuated::Punctuated,
-    Fields, Ident, ItemStruct, Token, Type,
+    DeriveInput, Fields, Ident, ItemStruct, Token, Type, TypePath,
 };
+
+#[proc_macro_derive(OsuEncode)]
+pub fn try_from_encode(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let ty = input
+        .attrs
+        .iter()
+        .find(|attr| attr.path.is_ident("repr"))
+        .unwrap()
+        .parse_args::<TypePath>()
+        .unwrap()
+        .path
+        .get_ident()
+        .unwrap()
+        .to_owned();
+    let ident = &input.ident;
+
+    TokenStream::from(quote! {
+        impl OsuEncode for #ident {
+            fn encoded_size(&self) -> usize {
+                std::mem::size_of_value(self)
+            }
+
+            fn encode(&self, buf: &mut Vec<u8>) {
+                (*self as #ty ).encode(buf);
+            }
+
+            fn decode(buf: &[u8]) -> Result<(&Self, usize), ()> {
+                let (&val, off) = < #ty >::decode(buf)?;
+                use std::convert::TryFrom;
+                Self::try_from(val)?;
+                Ok((
+                    unsafe { &*(buf.as_ptr() as *const Self) },
+                    off
+                ))
+            }
+        }
+    })
+}
 
 struct Decoder {
     name: Ident,

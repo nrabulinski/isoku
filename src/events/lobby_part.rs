@@ -1,7 +1,7 @@
 use crate::{Glob, Token};
 use std::sync::Arc;
 
-pub async fn handle(token: &Arc<Token>, glob: &Glob) -> Result<(), String> {
+pub async fn handle(token: &Arc<dyn Token>, glob: &Glob) -> Result<(), String> {
     let mut lobby = glob.lobby.write().await;
     let pos = lobby
         .iter()
